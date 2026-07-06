@@ -3,7 +3,7 @@
 * Type      : REPORT
 * Title     : Overview transport requests for all systems and clients
 * Tcode     :
-* Purpose   :
+* Purpose   : Overview transport requests for all systems and clients
 * Developer : Norberto Silva  ( norberto@norbertosilva.com )
 * Repository: https://github.com/NorbertoSilva
 * Update    : 07/07/2026
@@ -1272,7 +1272,7 @@ FORM selection_screen_object USING u_object TYPE trobjtype
     WITH KEY object = u_object.
 
   IF sy-subrc NE 0.
-    MESSAGE e870(tk).  "Selecionar um tipo de objeto v·lido (sÛ objetos possÌveis de bloquear)
+    MESSAGE e870(tk).  "Selecionar um tipo de objeto v√°lido (s√≥ objetos poss√≠veis de bloquear)
   ELSE.
     u_pgmid  = ls_object_text-pgmid.
     u_objtxt = ls_object_text-text.
