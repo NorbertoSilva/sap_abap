@@ -88,7 +88,7 @@ AT SELECTION-SCREEN.
   TRANSLATE p_bapi TO UPPER CASE.
 *  IF p_bapi(4) NE 'BAPI'.
 *    MESSAGE e000(oo)
-*    WITH 'O nome da BAPI n„o È v·lido.'.
+*    WITH 'O nome da BAPI n√£o √© v√°lido.'.
 *  ENDIF.
 *-----------------------------------------------------------------------
 
@@ -138,7 +138,7 @@ FORM top_of_page.
   WRITE: 001 '|',
          156 '|',
         /001 '|',
-         002 'RelaÁ„o entre campos das tabelas da BAPI',
+         002 'Rela√ß√£o entre campos das tabelas da BAPI',
              |"{ p_bapi }"|,
              'com campos de tabelas transparentes.',
          156 '|',
@@ -154,7 +154,7 @@ FORM top_of_page.
 *             sy-datum,
 *         050 'Hora:',
 *             sy-uzeit,
-*         080 'Usu·rio:',
+*         080 'Usu√°rio:',
 *             sy-uname,
 *         156 '|'.
 *  "--------------------------------------
@@ -181,8 +181,8 @@ ENDFORM.    "TOP_OF_PAGE
 *-----------------------------------------------------------------------
 FORM selecionar_dados.
 
-  "Faz busca na tabela de funÁıes de acordo com a entrada na
-  "tela de seleÁ„o
+  "Faz busca na tabela de fun√ß√µes de acordo com a entrada na
+  "tela de sele√ß√£o
   SELECT funcname
          pname
   INTO TABLE gt_tfdir
@@ -235,8 +235,8 @@ FORM selecionar_dados.
 
 
     "--------------------------------------
-    "Verifica tambÈm se tem algum campo que a referÍncia È uma
-    "tabela-campo e n„o somente uma tabela ou estrutura completa.
+    "Verifica tamb√©m se tem algum campo que a refer√™ncia √© uma
+    "tabela-campo e n√£o somente uma tabela ou estrutura completa.
     TYPES: BEGIN OF ly_field,
              tabname   TYPE dd03l-tabname,
              fieldname TYPE dd03l-fieldname,
@@ -290,7 +290,7 @@ ENDFORM.    "SELECIONAR_DADOS
 *-----------------------------------------------------------------------
 * Form EXIBIR_DADOS
 *-----------------------------------------------------------------------
-* Gera relatÛrio writer a partir dos dados selecionados
+* Gera relat√≥rio writer a partir dos dados selecionados
 *-----------------------------------------------------------------------
 FORM exibir_dados.
 
@@ -310,12 +310,12 @@ FORM exibir_dados.
     RETURN.
   ENDIF.
 
-  "Verifica o tamanho m·ximo do conte˙do de cada campo
+  "Verifica o tamanho m√°ximo do conte√∫do de cada campo
   PERFORM tamanho_campo.
 
   SORT gt_dd03l BY position.
 
-  "Leitura dos par‚metros do mÛdulo de funÁ„o
+  "Leitura dos par√¢metros do m√≥dulo de fun√ß√£o
   LOOP AT gt_fupararef INTO ls_fupararef.
 
     MOVE: ls_fupararef-paramtype TO lv_paramtype,
@@ -327,10 +327,10 @@ FORM exibir_dados.
                                              lv_fieldname.
 
     "--------------------------------------
-    "Quando for um novo par‚metro, faz a quebra
+    "Quando for um novo par√¢metro, faz a quebra
     AT NEW pposition.
 
-      "Busca a descriÁ„o da tabela
+      "Busca a descri√ß√£o da tabela
       CLEAR ls_dd02t.
       READ TABLE gt_dd02t
       INTO ls_dd02t
@@ -348,7 +348,7 @@ FORM exibir_dados.
       SEPARATED BY space.
       CONDENSE lv_string.
       WRITE: 001 '|',
-             002 'Par‚metro BAPI:',
+             002 'Par√¢metro BAPI:',
                  ls_fupararef-parameter,
              050 'Tabela BAPI:',
 *                 ls_fupararef-structure(30),
@@ -356,25 +356,25 @@ FORM exibir_dados.
                   lv_string,
              156 '|'.
 
-      "Indica o tipo de par‚metro
+      "Indica o tipo de par√¢metro
       WRITE: /001 '|',
-              002 'Tipo Par‚metro:'.
+              002 'Tipo Par√¢metro:'.
       IF lv_paramtype EQ 'I'.
-        WRITE 018 'ImportaÁ„o'.
+        WRITE 018 'Importa√ß√£o'.
       ELSEIF lv_paramtype EQ 'C'.
-        WRITE 018 'ModificaÁ„o'.
+        WRITE 018 'Modifica√ß√£o'.
       ELSEIF lv_paramtype EQ 'E'.
-        WRITE 018 'ExportaÁ„o'.
+        WRITE 018 'Exporta√ß√£o'.
       ELSEIF lv_paramtype EQ 'T'.
         WRITE 018 'Tabela'.
       ENDIF.
 
-      "Verifica se o par‚metro È opcional
-      WRITE 050 'Par‚metro  :'.
+      "Verifica se o par√¢metro √© opcional
+      WRITE 050 'Par√¢metro  :'.
       IF lv_optional EQ 'X'.
         WRITE: 063 'Opcional'.
       ELSE.
-        WRITE: 063 'ObrigatÛrio'.
+        WRITE: 063 'Obrigat√≥rio'.
       ENDIF.
       WRITE: 156 '|'.
       ULINE.
@@ -383,8 +383,8 @@ FORM exibir_dados.
       WRITE AT: /001 '|',
                  002 'Campo BAPI',
                      gv_tam_nom 'Elemento de Dados',
-                     gv_tam_ele 'DomÌnio',
-                     gv_tam_dom 'DescriÁ„o do Campo',
+                     gv_tam_ele 'Dom√≠nio',
+                     gv_tam_dom 'Descri√ß√£o do Campo',
                  156 '|'.
       ULINE.
     ENDAT.
@@ -441,8 +441,8 @@ ENDFORM.    "EXIBIR_DADOS
 *-----------------------------------------------------------------------
 * Form TAMANHO_CAMPO
 *-----------------------------------------------------------------------
-* Verifica qual o tamanho m·ximo do conte˙do de cada campo.
-* Os valores ser„o utilizados para o relatÛrio com colunas din‚micas.
+* Verifica qual o tamanho m√°ximo do conte√∫do de cada campo.
+* Os valores ser√£o utilizados para o relat√≥rio com colunas din√¢micas.
 *-----------------------------------------------------------------------
 FORM tamanho_campo.
 
