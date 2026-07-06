@@ -1,0 +1,819 @@
+*-----------------------------------------------------------------------
+* Object    : ZNS_CREATE_TOC_REQUEST_AUTOMAT
+* Type      : REPORT
+* Title     : Cria Request de Transporte de Cópia (ToC) automaticamente
+*             Automatically creates a Transport of Copies (ToC) request
+* Tcode     : ZNS_001
+* Purpose   : Programa p/ criar automaticamente uma request ToC a partir
+*             de uma request original, liberá-la e transportá-la p/ QAS.
+*             Uso somente no ambiente DEV.
+*             Program to automatically create a ToC request from an
+*             original request, release it, and transport it to QAS.
+*             For use in the DEV environment only.
+* Developer : Norberto Silva  ( norberto@norbertosilva.com )
+* Repository: https://github.com/NorbertoSilva
+* Update    : 07/07/2026
+*-----------------------------------------------------------------------
+
+
+REPORT zns_create_toc_request_automatically.
+
+
+*-----------------------------------------------------------------------
+TYPES: BEGIN OF ty_mainprograms,
+         prog TYPE prog,
+       END OF ty_mainprograms.
+DATA: gt_mainprograms TYPE STANDARD TABLE OF ty_mainprograms,
+      gv_program_name TYPE prog VALUE 'LSTR9F01',
+      gv_program_line TYPE i    VALUE 177.
+DATA: gv_new_trkorr TYPE e070-trkorr,
+      gv_target     TYPE tmscsys-sysnam,
+      gs_request    TYPE trwbo_request,
+      gv_msg_text   TYPE string,
+      gv_error      TYPE flag.
+*-----------------------------------------------------------------------
+
+
+*-----------------------------------------------------------------------
+SELECTION-SCREEN BEGIN OF BLOCK b1
+WITH FRAME TITLE nstxt_b1 NO INTERVALS.
+
+SELECTION-SCREEN SKIP.
+
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT (25) nstxt_01 FOR FIELD p_trkorr.
+SELECTION-SCREEN POSITION 28.
+PARAMETERS p_trkorr TYPE e070-trkorr.
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN SKIP.
+
+SELECTION-SCREEN BEGIN OF LINE.
+PARAMETERS p_releas TYPE flag DEFAULT 'X'.
+SELECTION-SCREEN COMMENT (30) nstxt_02 FOR FIELD p_releas.
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN BEGIN OF LINE.
+PARAMETERS p_transp TYPE flag DEFAULT 'X'.
+SELECTION-SCREEN COMMENT (30) nstxt_03 FOR FIELD p_transp.
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN END OF BLOCK b1.
+*-----------------------------------------------------------------------
+
+
+*-----------------------------------------------------------------------
+INITIALIZATION.
+  GET PARAMETER ID 'KOR' FIELD p_trkorr.
+
+  nstxt_b1 = |Informe a request original|.  "Inform the original request
+  nstxt_01 = |Request/tarefa original|.     "Original request/task
+  nstxt_02 = |Liberar Request ToC|.         "Release ToC Request
+  nstxt_03 = |Transportar Request ToC|.     "Transport ToC Request
+*-----------------------------------------------------------------------
+
+
+*-----------------------------------------------------------------------
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_trkorr.
+  PERFORM ns_get_requests.
+*-----------------------------------------------------------------------
+
+
+*-----------------------------------------------------------------------
+START-OF-SELECTION.
+  PERFORM ns_start_of_selection.
+*-----------------------------------------------------------------------
+
+
+*-----------------------------------------------------------------------
+* Form NS_START_OF_SELECTION
+*-----------------------------------------------------------------------
+FORM ns_start_of_selection.
+
+  PERFORM ns_set_breakpoint.
+  PERFORM ns_exec.
+  PERFORM ns_delete_breakpoint.
+  PERFORM ns_finish.
+
+ENDFORM.    "NS_START_OF_SELECTION
+
+
+*-----------------------------------------------------------------------
+* Form NS_EXEC
+*-----------------------------------------------------------------------
+FORM ns_exec.
+
+  "--------------------------------------
+  " 1. Verifica se a request original existe
+  " 1. Verify is the original request exists
+  "--------------------------------------
+  IF gv_error EQ abap_true. RETURN. ENDIF.
+
+  CALL FUNCTION 'TR_READ_REQUEST'
+    EXPORTING
+      iv_read_e070     = abap_true
+      iv_read_e07t     = abap_true
+      iv_trkorr        = p_trkorr
+    CHANGING
+      cs_request       = gs_request
+    EXCEPTIONS
+      error_occured    = 1
+      no_authorization = 2
+      OTHERS           = 3.
+
+  IF sy-subrc NE 0.
+    gv_error = abap_true.
+
+    gv_msg_text = `A request original ` &&  "The original request
+                  p_trkorr &&
+                  ` informada não existe`.  "does not exist
+    CONDENSE gv_msg_text.
+    WRITE / gv_msg_text.
+
+    CLEAR gv_msg_text.
+    CALL FUNCTION 'FORMAT_MESSAGE'
+      EXPORTING
+        id   = sy-msgid
+        lang = sy-langu
+        no   = sy-msgno
+        v1   = sy-msgv1
+        v2   = sy-msgv2
+        v3   = sy-msgv3
+        v4   = sy-msgv4
+      IMPORTING
+        msg  = gv_msg_text.
+
+    gv_msg_text = |{ sy-msgty } => { gv_msg_text }|.
+    CONDENSE gv_msg_text.
+    WRITE: / icon_incomplete AS ICON, gv_msg_text.
+
+    RETURN.
+  ENDIF.
+
+  gv_msg_text = |Request original: { p_trkorr }|.  "Original request:
+  CONDENSE gv_msg_text.
+  WRITE: / icon_checked AS ICON, gv_msg_text.
+  "--------------------------------------
+
+
+
+  "--------------------------------------
+  " 2. Busca o ambiente de destino (QAS)
+  " 2. Get the target environment (QAS)
+  "--------------------------------------
+  DATA lv_sysid TYPE sysysid.
+
+  IF gv_error EQ abap_true. RETURN. ENDIF.
+
+  lv_sysid = p_trkorr(3).
+
+  CALL FUNCTION 'TMW_GET_TRANSPORT_TARGET'
+    EXPORTING
+      iv_sysname          = lv_sysid
+    IMPORTING
+      ev_system_tarsys    = gv_target
+    EXCEPTIONS
+      configuration_error = 1
+      OTHERS              = 2.
+
+  IF sy-subrc NE 0.
+    gv_error = abap_true.
+
+    gv_msg_text = |Erro ao buscar o destino para a request ToC|.  "Error retrieving the target for the ToC request
+    CONDENSE gv_msg_text.
+    WRITE / gv_msg_text COLOR COL_NEGATIVE.
+
+    CLEAR gv_msg_text.
+    CALL FUNCTION 'FORMAT_MESSAGE'
+      EXPORTING
+        id   = sy-msgid
+        lang = sy-langu
+        no   = sy-msgno
+        v1   = sy-msgv1
+        v2   = sy-msgv2
+        v3   = sy-msgv3
+        v4   = sy-msgv4
+      IMPORTING
+        msg  = gv_msg_text.
+
+    gv_msg_text = |{ sy-msgty } => { gv_msg_text }|.
+    CONDENSE gv_msg_text.
+    WRITE: / icon_incomplete AS ICON, gv_msg_text.
+
+    RETURN.
+  ENDIF.
+
+  gv_msg_text = `Destino da request ToC: ` &&  "ToC request target:
+                gv_target.
+  CONDENSE gv_msg_text.
+  WRITE: / icon_checked AS ICON, gv_msg_text.
+  "--------------------------------------
+
+
+
+  "--------------------------------------
+  " 3. Cria nova request do tipo Transporte de Cópia (ToC)
+  " 3. Creates a new ToC type request
+  "--------------------------------------
+  DATA: lv_author     TYPE trexreqhd-author,
+        lv_text       TYPE trexreqhd-text,
+        lv_exception  TYPE tr007-exception,
+        ls_req_header TYPE trexreqhd.
+
+  IF gv_error EQ abap_true. RETURN. ENDIF.
+
+  lv_author = sy-uname.
+* lv_text = |ToC-{ gs_request-h-as4text }|.
+  lv_text = gs_request-h-as4text.
+  lv_text+56(4) = |-ToC|.
+  CONDENSE lv_text.
+
+  CALL FUNCTION 'TRINT_INSERT_NEW_COMM'
+    EXPORTING
+      wi_kurztext       = lv_text
+      wi_trfunction     = 'T'    "T = Transporte de Cópias / ToC type
+      iv_tarsystem      = gv_target
+      wi_client         = sy-mandt
+    IMPORTING
+      we_trkorr         = gv_new_trkorr
+    EXCEPTIONS
+      no_systemname     = 1
+      no_systemtype     = 2
+      no_authorization  = 3
+      db_access_error   = 4
+      file_access_error = 5
+      enqueue_error     = 6
+      number_range_full = 7
+      invalid_input     = 8
+      OTHERS            = 9.
+
+  IF sy-subrc NE 0.
+    gv_error = abap_true.
+
+    gv_msg_text = `Erro ` &&  "Error
+                  sy-subrc &&
+                  ` ao criar request ToC`.  "creating ToC request
+    CONDENSE gv_msg_text.
+    WRITE: / icon_incomplete AS ICON, gv_msg_text COLOR COL_NEGATIVE.
+
+    CLEAR gv_msg_text.
+    CALL FUNCTION 'FORMAT_MESSAGE'
+      EXPORTING
+        id   = sy-msgid
+        lang = sy-langu
+        no   = sy-msgno
+        v1   = sy-msgv1
+        v2   = sy-msgv2
+        v3   = sy-msgv3
+        v4   = sy-msgv4
+      IMPORTING
+        msg  = gv_msg_text.
+
+    gv_msg_text = |{ sy-msgty } => { gv_msg_text }|.
+    CONDENSE gv_msg_text.
+    WRITE: / icon_incomplete AS ICON, gv_msg_text.
+
+    RETURN.
+  ENDIF.
+
+*  CALL FUNCTION 'TR_EXT_CREATE_REQUEST'
+*    EXPORTING
+*      iv_request_type = 'T'    "T = Transporte de Cópias / ToC type
+*      iv_target       = gv_target
+*      iv_author       = lv_author
+*      iv_text         = lv_text
+*    IMPORTING
+*      es_req_header   = ls_req_header
+*      ev_exception    = lv_exception.
+*
+*  IF lv_exception IS NOT INITIAL.
+*    gv_error = abap_true.
+*
+*    gv_msg_text = `Erro ` &&  "Error
+*                  lv_exception &&
+*                  ` ao criar request ToC`.  "creating ToC request
+*    CONDENSE gv_msg_text.
+*    WRITE: / icon_incomplete AS ICON, gv_msg_text COLOR COL_NEGATIVE.
+*
+*    CLEAR gv_msg_text.
+*    CALL FUNCTION 'FORMAT_MESSAGE'
+*      EXPORTING
+*        id   = sy-msgid
+*        lang = sy-langu
+*        no   = sy-msgno
+*        v1   = sy-msgv1
+*        v2   = sy-msgv2
+*        v3   = sy-msgv3
+*        v4   = sy-msgv4
+*      IMPORTING
+*        msg  = gv_msg_text.
+*
+*    gv_msg_text = |{ sy-msgty } => { gv_msg_text }|.
+*    CONDENSE gv_msg_text.
+*    WRITE: / icon_incomplete AS ICON, gv_msg_text.
+*
+*    RETURN.
+*  ENDIF.
+*
+*  gv_new_trkorr = ls_req_header-req_id.
+
+  SET PARAMETER ID 'KOR' FIELD gv_new_trkorr.
+
+  gv_msg_text = `Request ToC criada: ` &&  "ToC request created:
+                gv_new_trkorr.
+  CONDENSE gv_msg_text.
+  WRITE: / icon_checked AS ICON, gv_msg_text.
+  "--------------------------------------
+
+
+
+  "--------------------------------------
+  " 4. Copia objetos da request original e suas tasks p/ a request ToC
+  " 4. Copies objects from the original request and its tasks to the ToC request
+  "--------------------------------------
+  DATA: lt_tasks TYPE STANDARD TABLE OF tr001,
+        ls_tasks TYPE tr001.
+
+  IF gv_error EQ abap_true. RETURN. ENDIF.
+
+  CLEAR lv_exception.
+
+  CALL FUNCTION 'TR40_GET_COMPLETE_PROJECT'
+    EXPORTING
+      iv_trkorr    = p_trkorr
+    IMPORTING
+      ev_exception = lv_exception
+    TABLES
+      et_orders    = lt_tasks.
+
+  IF lv_exception IS NOT INITIAL.
+    gv_error = abap_true.
+
+    gv_msg_text = `Erro ` &&  "Error
+                  lv_exception &&
+                  ` ao buscar as tarefas da request original`.  "retrieving tasks from the original request
+    CONDENSE gv_msg_text.
+    WRITE: / icon_incomplete AS ICON, gv_msg_text COLOR COL_NEGATIVE.
+
+    CLEAR gv_msg_text.
+    CALL FUNCTION 'FORMAT_MESSAGE'
+      EXPORTING
+        id   = sy-msgid
+        lang = sy-langu
+        no   = sy-msgno
+        v1   = sy-msgv1
+        v2   = sy-msgv2
+        v3   = sy-msgv3
+        v4   = sy-msgv4
+      IMPORTING
+        msg  = gv_msg_text.
+
+    gv_msg_text = |{ sy-msgty } => { gv_msg_text }|.
+    CONDENSE gv_msg_text.
+    WRITE: / icon_incomplete AS ICON, gv_msg_text.
+
+    RETURN.
+  ENDIF.
+
+  LOOP AT lt_tasks INTO ls_tasks
+  WHERE trstatus EQ 'D'   "D = Modificável / Modifiable
+  OR    trstatus EQ 'L'.  "L = Modificável, protegido / Modifiable, protected
+    CALL FUNCTION 'TR_COPY_COMM'
+      EXPORTING
+        wi_dialog                = space
+        wi_trkorr_from           = ls_tasks-trkorr
+        wi_trkorr_to             = gv_new_trkorr
+        wi_without_documentation = abap_true
+      EXCEPTIONS
+        db_access_error          = 1
+        trkorr_from_not_exist    = 2
+        trkorr_to_is_repair      = 3
+        trkorr_to_locked         = 4
+        trkorr_to_not_exist      = 5
+        trkorr_to_released       = 6
+        user_not_owner           = 7
+        no_authorization         = 8
+        wrong_client             = 9
+        wrong_category           = 10
+        object_not_patchable     = 11
+        OTHERS                   = 12.
+
+    IF sy-subrc NE 0.
+      gv_error = abap_true.
+
+      gv_msg_text = `Erro ` &&  "Error
+                    sy-subrc &&
+                    ` ao copiar objetos da request original`.  "copying objects from the original request
+      CONDENSE gv_msg_text.
+      WRITE: / icon_incomplete AS ICON, gv_msg_text COLOR COL_NEGATIVE.
+
+      CLEAR gv_msg_text.
+      CALL FUNCTION 'FORMAT_MESSAGE'
+        EXPORTING
+          id   = sy-msgid
+          lang = sy-langu
+          no   = sy-msgno
+          v1   = sy-msgv1
+          v2   = sy-msgv2
+          v3   = sy-msgv3
+          v4   = sy-msgv4
+        IMPORTING
+          msg  = gv_msg_text.
+
+      gv_msg_text = |{ sy-msgty } => { gv_msg_text }|.
+      CONDENSE gv_msg_text.
+      WRITE: / icon_incomplete AS ICON, gv_msg_text.
+
+      RETURN.
+    ENDIF.
+
+    IF ls_tasks-strkorr IS INITIAL.
+      "É a request principal
+      "It's the original request
+      gv_msg_text = `Request copiada: ` &&  "Request copied:
+                    ls_tasks-trkorr.
+    ELSE.
+      "É uma tarefa da request principal
+      "It's a task of original request
+      gv_msg_text = `Tarefa copiada: ` &&  "Task copied:
+                    ls_tasks-trkorr.
+    ENDIF.
+
+    CONDENSE gv_msg_text.
+    WRITE: / icon_checked AS ICON, gv_msg_text.
+  ENDLOOP.
+
+  "Ordenar e comprimir a lista de objetos da nova request
+  "Sort and compress the list of objects for the new request
+  CALL FUNCTION 'TR_SORT_AND_COMPRESS_COMM'
+    EXPORTING
+      iv_trkorr                      = gv_new_trkorr
+    EXCEPTIONS
+      trkorr_not_found               = 1
+      order_released                 = 2
+      error_while_modifying_obj_list = 3
+      tr_enqueue_failed              = 4
+      no_authorization               = 5
+      OTHERS                         = 6.
+
+  IF sy-subrc NE 0.
+    gv_error = abap_true.
+
+    gv_msg_text = `Erro ` &&  "Error
+                  sy-subrc &&
+                  ` ao comprimir objetos da request ToC`.  "compressing ToC request objects
+    CONDENSE gv_msg_text.
+    WRITE: / icon_incomplete AS ICON, gv_msg_text COLOR COL_NEGATIVE.
+
+    CLEAR gv_msg_text.
+    CALL FUNCTION 'FORMAT_MESSAGE'
+      EXPORTING
+        id   = sy-msgid
+        lang = sy-langu
+        no   = sy-msgno
+        v1   = sy-msgv1
+        v2   = sy-msgv2
+        v3   = sy-msgv3
+        v4   = sy-msgv4
+      IMPORTING
+        msg  = gv_msg_text.
+
+    gv_msg_text = |{ sy-msgty } => { gv_msg_text }|.
+    CONDENSE gv_msg_text.
+    WRITE: / icon_incomplete AS ICON, gv_msg_text.
+
+    RETURN.
+  ENDIF.
+
+  gv_msg_text = |Objetos da request original copiados|.  "Original request objects copied
+  CONDENSE gv_msg_text.
+  WRITE: / icon_checked AS ICON, gv_msg_text.
+  "--------------------------------------
+
+
+
+  "--------------------------------------
+  " 5. Libera a request ToC criada
+  " 5. Release the Toc request created
+  "--------------------------------------
+  DATA lt_messages TYPE ctsgerrmsgs.
+
+  IF gv_error EQ abap_true. RETURN. ENDIF.
+
+  IF p_releas IS NOT INITIAL.
+    CALL FUNCTION 'TRINT_RELEASE_REQUEST'
+      EXPORTING
+        iv_trkorr                   = gv_new_trkorr
+        iv_dialog                   = space
+        iv_success_message          = space
+        iv_without_objects_check    = abap_true
+        iv_without_locking          = abap_true
+        iv_without_docu             = abap_true
+        iv_ignore_warnings          = abap_true
+      IMPORTING
+        et_messages                 = lt_messages
+      EXCEPTIONS
+        cts_initialization_failure  = 1
+        enqueue_failed              = 2
+        no_authorization            = 3
+        invalid_request             = 4
+        request_already_released    = 5
+        repeat_too_early            = 6
+        object_lock_error           = 7
+        object_check_error          = 8
+        docu_missing                = 9
+        db_access_error             = 10
+        action_aborted_by_user      = 11
+        export_failed               = 12
+        execute_objects_check       = 13
+        release_in_bg_mode          = 14
+        release_in_bg_mode_w_objchk = 15
+        error_in_export_methods     = 16
+        object_lang_error           = 17
+        OTHERS                      = 18.
+
+    IF sy-subrc IS NOT INITIAL.
+      gv_error = abap_true.
+
+      gv_msg_text = `Erro ` &&  "Erro
+                    sy-subrc &&
+                    ` ao liberar a request ToC: ` &&  "releasing the ToC request
+                    gv_new_trkorr.
+      CONDENSE gv_msg_text.
+      WRITE: / icon_incomplete AS ICON, gv_msg_text COLOR COL_NEGATIVE.
+
+      LOOP AT lt_messages INTO DATA(ls_messages).
+        CLEAR gv_msg_text.
+
+        CALL FUNCTION 'FORMAT_MESSAGE'
+          EXPORTING
+            id   = ls_messages-msgid
+            lang = sy-langu
+            no   = ls_messages-msgno
+            v1   = ls_messages-msgv1
+            v2   = ls_messages-msgv2
+            v3   = ls_messages-msgv3
+            v4   = ls_messages-msgv4
+          IMPORTING
+            msg  = gv_msg_text.
+
+        gv_msg_text = |{ ls_messages-msgty } => { gv_msg_text }|.
+        CONDENSE gv_msg_text.
+        WRITE: / icon_incomplete AS ICON, gv_msg_text.
+      ENDLOOP.
+
+      RETURN.
+    ENDIF.
+
+    SET PARAMETER ID 'KOR' FIELD ' '.
+
+    gv_msg_text = `Request ToC liberada: ` &&  "Toc request released:
+                  gv_new_trkorr.
+    CONDENSE gv_msg_text.
+    WRITE: / icon_checked AS ICON, gv_msg_text.
+  ENDIF.
+  "--------------------------------------
+
+
+  "--------------------------------------
+  " 6. Realiza o transporte p/ QAS
+  " 6. Realize the transport to QAS environment
+  "--------------------------------------
+  IF gv_error EQ abap_true. RETURN. ENDIF.
+
+  IF p_transp IS NOT INITIAL.
+*    DATA: lv_ret_code TYPE stpa-retcode,
+*          lv_message  TYPE stpa-message.
+*
+*    CALL FUNCTION 'TMS_TP_IMPORT'
+*      EXPORTING
+*        iv_system_name     = gv_target
+*        iv_request         = gv_new_trkorr
+*        iv_test_import     = space
+*        iv_offline         = space
+*        iv_ign_predec      = abap_true
+*        iv_ign_cvers       = abap_true
+**       iv_ign_rc152       =
+**       iv_offline         =
+**       iv_feedback        =
+**       iv_test_import     =
+**       iv_cmd_import      =
+**       iv_no_delivery     =
+**       iv_own_request     =
+**       iv_subset          =
+*      IMPORTING
+*        ev_tp_ret_code     = lv_ret_code
+*        ev_tp_message      = lv_message
+*      EXCEPTIONS
+*        permission_denied  = 1
+*        import_not_allowed = 2
+*        enqueue_failed     = 3
+*        tp_call_failed     = 4
+*        tp_interface_error = 5
+*        tp_reported_error  = 6
+*        tp_reported_info   = 7
+*        OTHERS             = 8.
+*
+*    IF sy-subrc NE 0.
+*      MESSAGE |Erro ao importar para { gv_target }: { lv_message }|
+**     MESSAGE |Error importing to { gv_target }: { lv_message }|
+*      TYPE 'E'.
+*    ELSE.
+*      MESSAGE |Request { gv_new_trkorr } importada para { gv_target } com sucesso!|
+**     MESSAGE |Request { gv_new_trkorr } imported to { gv_target } successfully!|
+*      TYPE 'S'.
+*    ENDIF.
+
+    CALL FUNCTION 'TMS_MGR_IMPORT_TR_REQUEST'
+      EXPORTING
+        iv_system                  = gv_target
+        iv_request                 = gv_new_trkorr
+        iv_import_again            = abap_true
+        iv_ignore_originality      = abap_true
+        iv_ignore_repairs          = abap_true
+        iv_ignore_transtype        = abap_true
+        iv_ignore_tabletype        = abap_true
+        iv_ignore_predec           = abap_true
+        iv_ignore_cvers            = abap_true
+        iv_ignore_spam             = abap_true
+      EXCEPTIONS
+        read_config_failed         = 1
+        table_of_requests_is_empty = 2
+        OTHERS                     = 3.
+
+    IF sy-subrc NE 0.
+      gv_error = abap_true.
+
+      gv_msg_text = `Erro ` &&  "Erro
+                    sy-subrc &&
+                    ` ao enviar request ToC para QAS`.  "sending ToC request to QAS
+      CONDENSE gv_msg_text.
+      WRITE: / icon_incomplete AS ICON, gv_msg_text COLOR COL_NEGATIVE.
+
+      CLEAR gv_msg_text.
+      CALL FUNCTION 'FORMAT_MESSAGE'
+        EXPORTING
+          id   = sy-msgid
+          lang = sy-langu
+          no   = sy-msgno
+          v1   = sy-msgv1
+          v2   = sy-msgv2
+          v3   = sy-msgv3
+          v4   = sy-msgv4
+        IMPORTING
+          msg  = gv_msg_text.
+
+      gv_msg_text = |{ sy-msgty } => { gv_msg_text }|.
+      CONDENSE gv_msg_text.
+      WRITE: / icon_incomplete AS ICON, gv_msg_text.
+
+      RETURN.
+    ENDIF.
+
+    gv_msg_text = |Request ToC transportada para QAS|.  "ToC request transported to QAS
+    CONDENSE gv_msg_text.
+    WRITE: / icon_checked AS ICON, gv_msg_text.
+  ENDIF.
+  "--------------------------------------
+
+ENDFORM.    "NS_EXEC
+
+
+*-----------------------------------------------------------------------
+* Form NS_GET_REQUESTS
+*-----------------------------------------------------------------------
+FORM ns_get_requests.
+
+  DATA: ls_selected_request TYPE trwbo_request_header,
+        ls_selected_task    TYPE trwbo_request_header,
+        ls_selection        TYPE trwbo_selection,
+        lv_organizer_type   TYPE trwbo_calling_organizer.
+
+
+  lv_organizer_type      = 'W'.  "W=Workbench;
+  ls_selection-reqstatus = 'D'.  "D=Modificável; L=Modificável, protegido
+
+  "Se não informar o IV_USERNAME, mostrará as requests de todos.
+  "Dentro do popup tem o botão 'Ordens próprias' e poderá visualizar
+  "somente as request do usuário logado.
+
+  "If IV_USERNAME is not provided, requests from all users will be displayed.
+  "The popup contains an 'Own requests' button, allowing you to view
+  "only the logged-in user's requests.
+  CALL FUNCTION 'TR_PRESENT_REQUESTS_SEL_POPUP'
+    EXPORTING
+      iv_organizer_type   = lv_organizer_type
+      is_selection        = ls_selection
+*     iv_username         = ''  "sy-uname
+      iv_username         = sy-uname
+    IMPORTING
+      es_selected_request = ls_selected_request
+      es_selected_task    = ls_selected_task.
+
+  p_trkorr = ls_selected_request-trkorr.
+
+*  DATA lv_trkorr TYPE trkorr.
+*  CALL FUNCTION 'TR_F4_REQUESTS'
+*    EXPORTING
+*      iv_client           = sy-mandt
+*    IMPORTING
+*      ev_selected_request = lv_trkorr.
+*
+*  IF lv_trkorr IS NOT INITIAL.
+*    p_trkorr = lv_trkorr.
+*  ENDIF.
+
+ENDFORM.    "NS_GET_REQUESTS
+
+
+*-----------------------------------------------------------------------
+* Form NS_SET_BREAKPOINT
+*-----------------------------------------------------------------------
+FORM ns_set_breakpoint.
+
+  "Em alguns ambientes que não dão permissão para o login, é criado
+  "esse breakpoint no Include LSTR9F01 (linha 177) para mudar o
+  "SY-SUBRC para 0 e retornar na linha 171 para seguir e conseguir
+  "realizar a conclusão da criação da request ToC.
+  "Esse breakpoint será acionado algumas vezes até concluir tudo.
+  "Se o login tiver permissão, esse breakpoint não será acionado.
+
+  "In environments where login permission is denied, this breakpoint
+  "is set in Include LSTR9F01 (line 177) to change SY-SUBRC to 0 and
+  "return to line 171, allowing the ToC request creation process
+  "to complete.
+  "This breakpoint will be triggered multiple times until the process finishes.
+  "If the login has permission, this breakpoint will not be triggered.
+
+  CALL FUNCTION 'RS_GET_MAINPROGRAMS'
+    EXPORTING
+      dialog          = abap_true
+      name            = gv_program_name
+      multiple_select = abap_true
+    TABLES
+      mainprograms    = gt_mainprograms
+    EXCEPTIONS
+      OTHERS          = 1.
+
+  LOOP AT gt_mainprograms INTO DATA(ls_mainprograms).
+    CALL FUNCTION 'RS_SET_BREAKPOINT'
+      EXPORTING
+        index        = gv_program_line
+        program      = gv_program_name
+        mainprogram  = ls_mainprograms-prog
+      IMPORTING
+        o_index      = gv_program_line
+      EXCEPTIONS
+        not_executed = 1
+        OTHERS       = 2.
+
+    IF sy-subrc NE 0.
+      gv_error = abap_true.
+
+      MESSAGE ID sy-msgid
+            TYPE 'S'
+          NUMBER sy-msgno
+            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+    ENDIF.
+  ENDLOOP.
+
+ENDFORM.    "NS_SET_BREAKPOINT
+
+
+*-----------------------------------------------------------------------
+* Form NS_DELETE_BREAKPOINT
+*-----------------------------------------------------------------------
+FORM ns_delete_breakpoint.
+
+  LOOP AT gt_mainprograms INTO DATA(ls_mainprograms).
+    CALL FUNCTION 'RS_DELETE_BREAKPOINT'
+      EXPORTING
+        index    = gv_program_line
+        mainprog = ls_mainprograms-prog
+        program  = gv_program_name.
+  ENDLOOP.
+
+ENDFORM.    "NS_DELETE_BREAKPOINT
+
+
+*-----------------------------------------------------------------------
+* Form NS_FINISH
+*-----------------------------------------------------------------------
+FORM ns_finish.
+
+  WRITE /.
+
+  IF gv_error IS INITIAL.
+    gv_msg_text = |Processo concluído com sucesso|.  "Process finished sucessfuly
+    CONDENSE gv_msg_text.
+    WRITE: / icon_checked AS ICON, gv_msg_text INTENSIFIED ON COLOR COL_POSITIVE.
+  ELSE.
+    gv_msg_text = |Processo concluído com erro|.  "Process finished with error
+    CONDENSE gv_msg_text.
+    WRITE: / icon_incomplete AS ICON, gv_msg_text INTENSIFIED ON COLOR COL_NEGATIVE.
+  ENDIF.
+
+  FORMAT COLOR OFF.
+
+ENDFORM.    "NS_FINISH
+*

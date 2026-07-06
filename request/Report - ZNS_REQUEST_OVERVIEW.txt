@@ -1,0 +1,1662 @@
+*-----------------------------------------------------------------------
+* Object    : ZNS_REQUEST_OVERVIEW
+* Type      : REPORT
+* Title     : Overview transport requests for all systems and clients
+* Tcode     :
+* Purpose   :
+* Developer : Norberto Silva  ( norberto@norbertosilva.com )
+* Repository: https://github.com/NorbertoSilva
+* Update    : 07/07/2026
+*-----------------------------------------------------------------------
+
+
+REPORT zns_request_overview
+NO STANDARD PAGE HEADING
+LINE-SIZE  255
+LINE-COUNT 65(2)
+MESSAGE-ID 00.
+
+
+*-----------------------------------------------------------------------
+TABLES:
+  sscrfields.
+
+TYPE-POOLS:
+  slis.
+
+TYPES:
+  ty_trkorr  TYPE RANGE OF trkorr,
+  ty_where_t TYPE STANDARD TABLE OF char50,
+  ty_objnam  TYPE c LENGTH 43.
+
+DATA:
+  gt_tmstpalog    TYPE tmstpalogs,
+  gs_tmstpalog    TYPE tmstpalog,
+  gt_syslst       TYPE tmscsyslst_typ,
+  gt_fieldcat     TYPE slis_t_fieldcat_alv,
+  gr_trkorr       TYPE RANGE OF trkorr,
+  gt_where1       TYPE ty_where_t,
+  gt_where2       TYPE ty_where_t,
+  gt_where3       TYPE ty_where_t,
+  gt_where4       TYPE ty_where_t,
+  gt_where5       TYPE ty_where_t,
+  gt_object_texts TYPE tr_object_texts,
+  gt_e071         TYPE TABLE OF e071.
+
+FIELD-SYMBOLS:
+  <gt_data>      TYPE STANDARD TABLE,
+  <field_header> TYPE any.
+
+CONSTANTS:
+  gc_x        TYPE flag      VALUE 'X',
+  gc_eb9      TYPE syucomm   VALUE '&EB9',
+  gc_refresh  TYPE syucomm   VALUE '&REFRESH',
+  gc_trkorr   TYPE fieldname VALUE 'TRKORR',
+  gc_checkbox TYPE fieldname VALUE 'CHECKBOX',
+  gc_colortab TYPE fieldname VALUE 'COLORTAB'.
+*-----------------------------------------------------------------------
+
+
+*-----------------------------------------------------------------------
+DEFINE mac_line.
+
+  SELECTION-SCREEN BEGIN OF BLOCK b0&1.
+  SELECTION-SCREEN BEGIN OF LINE.
+  SELECTION-SCREEN POSITION 1.
+  PARAMETERS p_pgmid&1 TYPE sctsobject-pgmid  MODIF ID out.
+  PARAMETERS p_objct&1 TYPE sctsobject-object VALUE CHECK.
+  SELECTION-SCREEN POSITION 11.
+  PARAMETERS p_objtx&1 TYPE sctsobject-text VISIBLE LENGTH 19
+                       LOWER CASE MODIF ID 2d.
+  SELECTION-SCREEN POSITION 31.
+  PARAMETERS p_objnm&1 TYPE ty_objnam.
+  SELECTION-SCREEN PUSHBUTTON 77(4) v_90&1 USER-COMMAND zd&1.
+  SELECTION-SCREEN END OF LINE.
+  SELECTION-SCREEN END OF BLOCK b0&1.
+
+END-OF-DEFINITION.
+*-----------------------------------------------------------------------
+
+
+*-----------------------------------------------------------------------
+DEFINE mac_selection_screen.
+
+  AT SELECTION-SCREEN ON p_objct&1.
+    PERFORM selection_screen_object USING p_objct&1
+                                 CHANGING p_pgmid&1
+                                          p_objtx&1.
+
+  AT SELECTION-SCREEN ON BLOCK b0&1.
+    IF sscrfields-ucomm EQ 'ZD&1'.
+      CLEAR: p_pgmid&1,
+             p_objct&1,
+             p_objnm&1,
+             p_objtx&1.
+    ENDIF.
+
+    PERFORM selection_screen USING p_pgmid&1
+                                   p_objct&1
+                                   p_objnm&1
+                                   gt_where&1.
+
+  AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_objnm&1.
+    PERFORM help_object_name USING p_pgmid&1
+                                   p_objct&1
+                                   'P_OBJNM&1'
+                          CHANGING p_objnm&1.
+
+END-OF-DEFINITION.
+*-----------------------------------------------------------------------
+
+
+*-----------------------------------------------------------------------
+SELECTION-SCREEN BEGIN OF BLOCK b_1 WITH FRAME TITLE TEXT-b_1.  "Parameters
+
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 1(31) text_100 FOR FIELD p_date_b.  "Start date
+PARAMETERS p_date_b TYPE dats OBLIGATORY.
+SELECTION-SCREEN PUSHBUTTON 58(4) v_100 USER-COMMAND tbck7.  "back 7 days
+SELECTION-SCREEN PUSHBUTTON 65(4) v_101 USER-COMMAND tbck.   "back 1 day
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 1(31) text_101 FOR FIELD p_date_e.  "End date
+PARAMETERS p_date_e TYPE dats OBLIGATORY DEFAULT sy-datum.
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 1(28) text_102 FOR FIELD s_trkorr.  "Transport requests
+SELECT-OPTIONS s_trkorr FOR gs_tmstpalog-trkorr.
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 1(28) text_103 FOR FIELD s_truser.  "Owner of the request
+SELECT-OPTIONS s_truser FOR gs_tmstpalog-truser DEFAULT sy-uname
+                        MATCHCODE OBJECT user_addr.
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 1(28) text_104 FOR FIELD s_korrdv.  "Request category
+SELECT-OPTIONS s_korrdv FOR gs_tmstpalog-korrdev.
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 1(28) text_105 FOR FIELD s_trfnct.  "Type of request
+SELECT-OPTIONS s_trfnct FOR gs_tmstpalog-trfunction.
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN END OF BLOCK b_1.
+
+SELECTION-SCREEN BEGIN OF BLOCK b_2 WITH FRAME TITLE TEXT-b_2.  "With objects only
+mac_line 1.
+mac_line 2.
+mac_line 3.
+mac_line 4.
+mac_line 5.
+SELECTION-SCREEN END OF BLOCK b_2.
+
+SELECTION-SCREEN BEGIN OF BLOCK b_3 WITH FRAME TITLE TEXT-b_3.  "Options
+
+SELECTION-SCREEN BEGIN OF LINE.
+PARAMETERS p_format AS CHECKBOX.
+SELECTION-SCREEN COMMENT 5(30) text_106 FOR FIELD p_format.  "Date DD.MM.YYYY (no time)
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN BEGIN OF LINE.
+PARAMETERS p_nocolr AS CHECKBOX DEFAULT 'X'.
+SELECTION-SCREEN COMMENT 5(30) text_107 FOR FIELD p_nocolr.  "No color
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN BEGIN OF LINE.
+PARAMETERS p_alvlst AS CHECKBOX DEFAULT 'X'.
+SELECTION-SCREEN COMMENT 5(30) text_108 FOR FIELD p_alvlst.  "ALV list
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN BEGIN OF LINE.
+PARAMETERS p_iconrc AS CHECKBOX.
+SELECTION-SCREEN COMMENT 5(30) text_109 FOR FIELD p_iconrc.  "No icon for return code
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN BEGIN OF LINE.
+PARAMETERS p_no_rc AS CHECKBOX.
+SELECTION-SCREEN COMMENT 5(30) text_110 FOR FIELD p_no_rc.  "No return code
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN BEGIN OF LINE.
+PARAMETERS p_nouser AS CHECKBOX.
+SELECTION-SCREEN COMMENT 5(30) text_111 FOR FIELD p_nouser.  "No user
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN BEGIN OF LINE.
+PARAMETERS p_errors AS CHECKBOX.
+SELECTION-SCREEN COMMENT 5(30) text_112 FOR FIELD p_errors.  "Error 8 only
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN END OF BLOCK b_3.
+*-----------------------------------------------------------------------
+
+
+*-----------------------------------------------------------------------
+INITIALIZATION.
+  v_100    = '@0G@'.
+  v_101    = '@0D@'.
+  text_100 = 'Start date'(100).
+  text_101 = 'End date'(101).
+  text_102 = 'Transport requests'(102).
+  text_103 = 'Owner of the request'(103).
+  text_104 = 'Request category'(104).
+  text_105 = 'Type of request'(105).
+  text_106 = 'Date DD.MM.YYYY (no time)'(106).
+  text_107 = 'No color'(107).
+  text_108 = 'ALV list'(108).
+  text_109 = 'No icon for return code'(109).
+  text_110 = 'No return code'(110).
+  text_111 = 'No user'(111).
+  text_112 = 'Error 8 only'(112).
+*-----------------------------------------------------------------------
+
+
+*-----------------------------------------------------------------------
+LOAD-OF-PROGRAM.
+  CALL FUNCTION 'TMS_CI_GET_SYSTEMLIST'
+    EXPORTING
+      iv_only_active              = gc_x
+    TABLES
+      tt_syslst                   = gt_syslst
+    EXCEPTIONS
+      tms_is_not_active           = 1
+      invalid_ci_conf_with_domain = 2
+      no_systems                  = 3
+      OTHERS                      = 4.
+
+  IF sy-subrc NE 0.
+    MESSAGE ID sy-msgid
+          TYPE sy-msgty
+        NUMBER sy-msgno
+          WITH sy-msgv1
+               sy-msgv2
+               sy-msgv3
+               sy-msgv4.
+  ENDIF.
+
+  PERFORM read_object_table CHANGING gt_object_texts.
+
+  v_901 = v_902 = v_903 = v_904 = v_905 = '@11@'.  "lixeira
+
+  s_trfnct-sign   = 'E'.
+  s_trfnct-option = 'EQ'.
+  s_trfnct-low    = 'T'.
+  s_trfnct-high   = ''.
+  APPEND s_trfnct.
+
+  mac_selection_screen 1.
+  mac_selection_screen 2.
+  mac_selection_screen 3.
+  mac_selection_screen 4.
+  mac_selection_screen 5.
+*-----------------------------------------------------------------------
+
+
+*-----------------------------------------------------------------------
+AT SELECTION-SCREEN.
+  IF sscrfields-ucomm EQ 'TBCK'.  "back 1 day
+    SUBTRACT 1 FROM p_date_b.
+  ELSEIF sscrfields-ucomm EQ 'TBCK7'.  "back 7 days
+    SUBTRACT 7 FROM p_date_b.
+  ENDIF.
+*-----------------------------------------------------------------------
+
+
+*-----------------------------------------------------------------------
+AT SELECTION-SCREEN OUTPUT.
+  PERFORM at_selection_screen_output.
+*-----------------------------------------------------------------------
+
+
+*-----------------------------------------------------------------------
+START-OF-SELECTION.
+  PERFORM start_of_selection.
+*-----------------------------------------------------------------------
+
+
+*-----------------------------------------------------------------------
+* Form START_OF_SELECTION
+*-----------------------------------------------------------------------
+FORM start_of_selection.
+
+  PERFORM read_data.
+  PERFORM display_data.
+
+ENDFORM.    "START_OF_SELECTION
+
+
+*-----------------------------------------------------------------------
+* Form READ_DATA
+*-----------------------------------------------------------------------
+FORM read_data.
+
+  "--------------------------------------
+  CONSTANTS:
+    lc_admin   TYPE char8 VALUE '_ADMIN',
+    lc_retcode TYPE char8 VALUE '_RETCODE'.
+
+  DATA:
+    lv_ind       TYPE i VALUE 1,
+    lv_system    TYPE char7,
+    lv_field     TYPE char20,
+    lt_system    TYPE TABLE OF char7,
+    ls_tabcolor  TYPE lvc_s_scol,
+    lt_tabcolor1 TYPE lvc_t_scol,
+    lt_tabcolor2 TYPE lvc_t_scol,
+    lp_table     TYPE REF TO data,      "Pointer to dynamic table
+    ls_lvc_cat   TYPE lvc_s_fcat,
+    lt_lvc_cat   TYPE lvc_t_fcat,       "Field catalog
+    ls_fieldcat  TYPE slis_fieldcat_alv,
+    ls_tmstpalog TYPE tmstpalog,
+    ls_e070      TYPE e070,
+    lt_e070      TYPE SORTED TABLE OF e070 WITH UNIQUE KEY trkorr,
+    lp_struct    TYPE REF TO data,
+    ls_tmscsys   TYPE tmscsyslst,
+    lr_trkorr    TYPE ty_trkorr,
+    ls_trkorr    LIKE LINE OF gr_trkorr.
+
+  FIELD-SYMBOLS:
+    <header> TYPE any.
+  "--------------------------------------
+
+
+  REFRESH: gt_tmstpalog,
+           gt_fieldcat.
+
+  IF <gt_data> IS ASSIGNED.
+    REFRESH <gt_data>.
+  ENDIF.
+
+  APPEND LINES OF gr_trkorr
+               TO lr_trkorr.
+
+  APPEND LINES OF s_trkorr
+               TO lr_trkorr.
+
+  LOOP AT gt_syslst INTO ls_tmscsys.
+    PERFORM get_transport USING ls_tmscsys-sysnam
+                                p_date_b
+                                p_date_e
+                                lr_trkorr.
+  ENDLOOP.
+
+  DELETE gt_tmstpalog
+  WHERE  truser     NOT IN s_truser
+  OR     trfunction NOT IN s_trfnct.
+
+  IF p_errors IS NOT INITIAL.
+    DELETE gt_tmstpalog
+    WHERE retcode NE '0008'.
+  ENDIF.
+
+  IF gt_tmstpalog[] IS NOT INITIAL.
+    REFRESH lr_trkorr.
+
+    LOOP AT gt_tmstpalog INTO ls_tmstpalog.
+      ls_trkorr-sign   = 'I'.
+      ls_trkorr-option = 'EQ'.
+      ls_trkorr-low    = ls_tmstpalog-trkorr.
+      APPEND ls_trkorr
+          TO lr_trkorr.
+    ENDLOOP.
+
+    SORT lr_trkorr.
+
+    DELETE ADJACENT DUPLICATES
+    FROM lr_trkorr.
+
+    REFRESH gt_tmstpalog.
+
+    LOOP AT gt_syslst INTO ls_tmscsys.
+      PERFORM get_transport USING ls_tmscsys-sysnam
+                                  '20000101'
+                                  '21000101'
+                                  lr_trkorr.
+    ENDLOOP.
+  ENDIF.
+
+  SORT gt_tmstpalog BY listname
+                       trcli.
+
+  IF gt_tmstpalog[] IS NOT INITIAL.
+    SELECT *
+    INTO TABLE lt_e070
+    FROM e070
+    FOR ALL ENTRIES IN gt_tmstpalog
+    WHERE trkorr  EQ gt_tmstpalog-trkorr
+    AND   korrdev IN s_korrdv.
+  ENDIF.
+
+  LOOP AT gt_tmstpalog INTO ls_tmstpalog.
+    READ TABLE lt_e070
+    WITH KEY trkorr = ls_tmstpalog-trkorr
+    TRANSPORTING NO FIELDS.
+
+    CHECK sy-subrc IS NOT INITIAL.
+
+    DELETE gt_tmstpalog.
+  ENDLOOP.
+
+  READ TABLE lt_e070
+        INTO ls_e070
+       INDEX 1.
+
+  LOOP AT gt_tmstpalog INTO ls_tmstpalog
+  WHERE listname(3) EQ sy-sysid.
+    CONCATENATE ls_tmstpalog-listname(3)
+                '_'
+                ls_tmstpalog-trcli
+           INTO lv_system.
+
+    READ TABLE lt_system
+    WITH TABLE KEY table_line = lv_system
+    TRANSPORTING NO FIELDS.
+
+    IF sy-subrc IS NOT INITIAL.
+      APPEND lv_system
+          TO lt_system.
+    ENDIF.
+  ENDLOOP.
+
+  LOOP AT gt_tmstpalog INTO ls_tmstpalog
+  WHERE listname(3) EQ ls_e070-tarsystem.
+    CONCATENATE ls_tmstpalog-listname(3)
+                '_'
+                ls_tmstpalog-trcli
+           INTO lv_system.
+
+    READ TABLE lt_system
+    WITH TABLE KEY table_line = lv_system
+    TRANSPORTING NO FIELDS.
+
+    IF sy-subrc IS NOT INITIAL.
+      APPEND lv_system
+          TO lt_system.
+    ENDIF.
+  ENDLOOP.
+
+  LOOP AT gt_tmstpalog INTO ls_tmstpalog
+  WHERE listname(3) NE sy-sysid
+  AND   listname(3) NE ls_e070-tarsystem.
+    CONCATENATE ls_tmstpalog-listname(3)
+                '_'
+                ls_tmstpalog-trcli
+           INTO lv_system.
+
+    READ TABLE lt_system
+    WITH TABLE KEY table_line = lv_system
+    TRANSPORTING NO FIELDS.
+
+    IF sy-subrc IS NOT INITIAL.
+      APPEND lv_system
+          TO lt_system.
+    ENDIF.
+  ENDLOOP.
+
+  DELETE ADJACENT DUPLICATES
+  FROM lt_system.
+
+  CLEAR ls_lvc_cat.
+  ls_lvc_cat-fieldname = gc_checkbox.
+  ls_lvc_cat-ref_table = 'ALV_S_FCAT'.
+  APPEND ls_lvc_cat
+      TO lt_lvc_cat.
+
+  IF p_nocolr IS INITIAL.
+    CLEAR ls_lvc_cat.
+    ls_lvc_cat-fieldname = 'COLORTAB'.
+    ls_lvc_cat-ref_table = 'SWLWPSYSALVEDIT'.
+    APPEND ls_lvc_cat
+        TO lt_lvc_cat.
+  ENDIF.
+
+  CLEAR ls_lvc_cat.
+  ls_lvc_cat-fieldname = gc_trkorr.
+  ls_lvc_cat-ref_table = 'E070'.
+  APPEND ls_lvc_cat
+      TO lt_lvc_cat.
+
+  CLEAR ls_fieldcat.
+  ls_fieldcat-fieldname   = gc_trkorr.
+  ls_fieldcat-ref_tabname = 'E070'.
+  ls_fieldcat-hotspot     = gc_x.
+  ls_fieldcat-key         = gc_x.
+  APPEND ls_fieldcat
+      TO gt_fieldcat.
+
+  CLEAR ls_lvc_cat.
+  ls_lvc_cat-fieldname = 'AS4TEXT'.
+  ls_lvc_cat-ref_table = 'TMSTPALOG'.
+  APPEND ls_lvc_cat
+      TO lt_lvc_cat.
+
+  CLEAR ls_fieldcat.
+  ls_fieldcat-fieldname   = 'AS4TEXT'.
+  ls_fieldcat-ref_tabname = 'TMSTPALOG'.
+  ls_fieldcat-key         = gc_x.
+  APPEND ls_fieldcat
+      TO gt_fieldcat.
+
+  CLEAR ls_lvc_cat.
+  ls_lvc_cat-fieldname = 'TRFUNCTION'.
+  ls_lvc_cat-ref_table = 'TMSTPALOG'.
+  APPEND ls_lvc_cat
+      TO lt_lvc_cat.
+
+  CLEAR ls_fieldcat.
+  ls_fieldcat-fieldname = 'TRFUNCTION'.
+  ls_fieldcat-rollname  = 'TRFUNCTION'.
+  APPEND ls_fieldcat
+      TO gt_fieldcat.
+
+  CLEAR ls_lvc_cat.
+  ls_lvc_cat-fieldname = 'KORRDEV'.
+  ls_lvc_cat-ref_table = 'E070'.
+  APPEND ls_lvc_cat
+      TO lt_lvc_cat.
+
+  CLEAR ls_fieldcat.
+  ls_fieldcat-fieldname = 'KORRDEV'.
+  ls_fieldcat-rollname  = 'TRCATEG'.
+  APPEND ls_fieldcat
+      TO gt_fieldcat.
+
+  CLEAR ls_lvc_cat.
+  ls_lvc_cat-fieldname = 'AS4USER'.
+  ls_lvc_cat-ref_table = 'E070'.
+  APPEND ls_lvc_cat
+      TO lt_lvc_cat.
+
+  CLEAR ls_fieldcat.
+  ls_fieldcat-fieldname   = 'AS4USER'.
+  ls_fieldcat-ref_tabname = 'E070'.
+  APPEND ls_fieldcat
+      TO gt_fieldcat.
+
+  LOOP AT lt_system INTO lv_system.
+    "For each line, a column is created in the fieldcatalog
+    "Build Fieldcatalog
+    CLEAR ls_lvc_cat.
+    ls_lvc_cat-fieldname = lv_system.
+    IF p_format EQ gc_x.
+      ls_lvc_cat-ref_field = 'DATUM'.
+      ls_lvc_cat-ref_table = 'SYST'.
+    ELSE.
+      ls_lvc_cat-ref_field = 'TRTIME'.
+      ls_lvc_cat-ref_table = 'TMSTPALOG'.
+    ENDIF.
+    APPEND ls_lvc_cat
+        TO lt_lvc_cat.
+
+    "Build Fieldcatalog
+    CLEAR ls_fieldcat.
+    ls_fieldcat-fieldname = ls_lvc_cat-fieldname.
+    IF p_format EQ gc_x.
+*     ls_fieldcat-ref_fieldname = 'DATUM'.
+*     ls_fieldcat-ref_tabname   = 'SYST'.
+      ls_fieldcat-rollname      = 'DATUM'.
+    ELSE.
+      ls_fieldcat-ref_fieldname = 'TRTIME'.
+      ls_fieldcat-ref_tabname   = 'TMSTPALOG'.
+      ls_fieldcat-edit_mask     = '==TSTPS'.
+    ENDIF.
+
+    ls_fieldcat-seltext_s = lv_system.
+    ls_fieldcat-seltext_m = lv_system.
+    ls_fieldcat-seltext_l = lv_system.
+    ls_fieldcat-just      = 'C'.
+    APPEND ls_fieldcat
+        TO gt_fieldcat.
+
+    IF p_no_rc IS INITIAL.
+      CLEAR ls_lvc_cat.
+      CONCATENATE lv_system
+                  lc_retcode
+             INTO ls_lvc_cat-fieldname.
+      IF p_iconrc IS NOT INITIAL.
+        ls_lvc_cat-ref_field = 'RETCODE'.
+        ls_lvc_cat-ref_table = 'TMSTPALOG'.
+      ELSE.
+        ls_lvc_cat-inttype   = 'CHAR'.
+        ls_lvc_cat-outputlen = 30.
+      ENDIF.
+      APPEND ls_lvc_cat
+          TO lt_lvc_cat.
+
+      CLEAR ls_fieldcat.
+      ls_fieldcat-fieldname = ls_lvc_cat-fieldname.
+      IF p_iconrc IS NOT INITIAL.
+        ls_fieldcat-ref_fieldname = 'RETCODE'.
+        ls_fieldcat-ref_tabname   = 'TMSTPALOG'.
+        ls_fieldcat-no_zero       = gc_x.
+      ELSE.
+        ls_fieldcat-inttype   = 'CHAR'.
+        ls_fieldcat-outputlen = 30.
+        ls_fieldcat-icon      = gc_x.
+        ls_fieldcat-seltext_s =
+        ls_fieldcat-seltext_m =
+        ls_fieldcat-seltext_l = 'RC'.
+      ENDIF.
+
+      APPEND ls_fieldcat
+          TO gt_fieldcat.
+    ENDIF.
+
+    IF p_nouser IS INITIAL.
+      CLEAR ls_lvc_cat.
+      CONCATENATE lv_system
+                  lc_admin
+             INTO ls_lvc_cat-fieldname.
+      ls_lvc_cat-ref_field = 'ADMIN'.
+      ls_lvc_cat-ref_table = 'TMSTPALOG'.
+      APPEND ls_lvc_cat
+          TO lt_lvc_cat.
+
+      CLEAR ls_fieldcat.
+      ls_fieldcat-fieldname     = ls_lvc_cat-fieldname.
+      ls_fieldcat-ref_fieldname = 'ADMIN'.
+      ls_fieldcat-ref_tabname   = 'TMSTPALOG'.
+      APPEND ls_fieldcat
+          TO gt_fieldcat.
+    ENDIF.
+
+  ENDLOOP.
+
+  IF <gt_data> IS NOT ASSIGNED.
+    "Create internal table
+    CALL METHOD cl_alv_table_create=>create_dynamic_table
+      EXPORTING
+        it_fieldcatalog = lt_lvc_cat
+      IMPORTING
+        ep_table        = lp_table.
+
+    ASSIGN lp_table->*
+        TO <gt_data>.
+  ENDIF.
+
+  IF <header> IS NOT ASSIGNED.
+    "Create structure = structure of the internal table
+    CREATE DATA lp_struct
+    LIKE LINE OF <gt_data>.
+
+    ASSIGN lp_struct->*
+        TO <header>.
+  ENDIF.
+
+  IF p_nocolr IS INITIAL.
+    LOOP AT lt_lvc_cat INTO ls_lvc_cat
+    WHERE fieldname NE gc_checkbox
+    AND   fieldname NE gc_colortab.
+      CLEAR ls_tabcolor.
+      ls_tabcolor-fname = ls_lvc_cat-fieldname.
+
+      IF ls_lvc_cat-fieldname+3(1) EQ '_'.
+        CASE ls_lvc_cat-fieldname(3).
+          WHEN ls_e070-tarsystem.
+            ls_tabcolor-color-col = 5.
+
+          WHEN sy-sysid.
+            ls_tabcolor-color-col = 3.
+
+          WHEN OTHERS.
+            ls_tabcolor-color-col = 6.
+        ENDCASE.
+      ELSE.
+        ls_tabcolor-color-col = 4.
+      ENDIF.
+
+      APPEND ls_tabcolor
+          TO lt_tabcolor1.
+
+      ls_tabcolor-color-int = 1.
+      APPEND ls_tabcolor
+          TO lt_tabcolor2.
+    ENDLOOP.
+  ENDIF.
+
+  SORT gt_tmstpalog BY trkorr
+                       trtime.
+
+  "Fill the internal to display <gt_data>
+  LOOP AT lt_e070 INTO ls_e070.
+    CLEAR <header>.
+
+    ASSIGN COMPONENT 'AS4USER'
+        OF STRUCTURE <header>
+                  TO <field_header>.
+
+    IF sy-subrc EQ 0.
+      <field_header> = ls_e070-as4user.
+    ENDIF.
+
+    LOOP AT gt_tmstpalog INTO ls_tmstpalog
+    WHERE trkorr EQ ls_e070-trkorr.
+      MOVE-CORRESPONDING ls_tmstpalog
+                      TO <header>.
+
+      CONCATENATE ls_tmstpalog-listname(3)
+                  '_'
+                  ls_tmstpalog-trcli
+             INTO lv_system.
+      APPEND lv_system
+          TO lt_system.
+
+      ASSIGN COMPONENT lv_system
+          OF STRUCTURE <header>
+                    TO <field_header>.
+
+      IF sy-subrc EQ 0.
+        <field_header> = ls_tmstpalog-trtime.
+      ENDIF.
+
+      CONCATENATE lv_system
+                  lc_retcode
+             INTO lv_field.
+
+      ASSIGN COMPONENT lv_field
+          OF STRUCTURE <header>
+                    TO <field_header>.
+
+      IF sy-subrc IS INITIAL.
+        IF p_iconrc IS NOT INITIAL.
+          <field_header> = ls_tmstpalog-retcode.
+        ELSE.
+          CASE ls_tmstpalog-retcode.
+            WHEN '0000'.
+
+            WHEN '0004'.
+              <field_header> = '@5D@'.
+
+            WHEN '0008'.
+              <field_header> = '@5C@'.
+
+            WHEN OTHERS.
+          ENDCASE.
+        ENDIF.
+      ENDIF.
+
+      CONCATENATE lv_system
+                  lc_admin
+             INTO lv_field.
+
+      ASSIGN COMPONENT lv_field
+          OF STRUCTURE <header>
+                    TO <field_header>.
+
+      IF sy-subrc IS INITIAL.
+        <field_header> = ls_tmstpalog-admin.
+      ENDIF.
+
+    ENDLOOP.
+
+    ASSIGN COMPONENT 'KORRDEV'
+        OF STRUCTURE <header>
+                  TO <field_header>.
+
+    IF sy-subrc EQ 0.
+      MOVE ls_e070-korrdev
+        TO <field_header>.
+    ENDIF.
+
+    IF p_nocolr IS INITIAL.
+      ASSIGN COMPONENT gc_colortab
+          OF STRUCTURE <header>
+                    TO <field_header>.
+
+      IF sy-subrc EQ 0.
+        IF lv_ind EQ 1.
+          MOVE lt_tabcolor1
+            TO <field_header>.
+        ELSE.
+          MOVE lt_tabcolor2
+            TO <field_header>.
+        ENDIF.
+      ENDIF.
+
+      lv_ind = lv_ind * ( -1 ).
+    ENDIF.
+
+    APPEND <header>
+        TO <gt_data>.
+
+  ENDLOOP.
+
+ENDFORM.    "READ_DATA
+
+
+*-----------------------------------------------------------------------
+* Form GET_TRANSPORT
+*-----------------------------------------------------------------------
+FORM get_transport USING u_tmssysnam TYPE tmssysnam
+                         u_startdate TYPE dats
+                         u_enddate   TYPE dats
+                         ur_trkorr   TYPE ty_trkorr.
+
+  "--------------------------------------
+  DATA:
+    lv_exp TYPE flag,
+    lt_log TYPE tmstpalogs.
+  "--------------------------------------
+
+
+  IF u_tmssysnam EQ sy-sysid.
+    lv_exp = gc_x.
+  ENDIF.
+
+  CALL FUNCTION 'TMS_TM_GET_TRLIST'
+    EXPORTING
+      iv_system      = u_tmssysnam
+      iv_startdate   = u_startdate
+      iv_starttime   = '000000'
+      iv_enddate     = u_enddate
+      iv_endtime     = '240000'
+      iv_allcli      = gc_x
+      iv_imports     = gc_x
+      iv_exports     = lv_exp
+      iv_last_import = gc_x
+    IMPORTING
+      et_tmstpalog   = lt_log
+    TABLES
+      irt_requests   = ur_trkorr
+    EXCEPTIONS
+      alert          = 1
+      OTHERS         = 2.
+
+  IF sy-subrc IS INITIAL.
+    APPEND LINES OF lt_log
+                 TO gt_tmstpalog.
+  ENDIF.
+
+ENDFORM.    "GET_TRANSPORT
+
+
+*-----------------------------------------------------------------------
+* Form DISPLAY_DATA
+*-----------------------------------------------------------------------
+FORM display_data.
+
+  "--------------------------------------
+  DATA:
+    ls_layout     TYPE slis_layout_alv,
+    ls_event_exit TYPE slis_event_exit,
+    lt_event_exit TYPE slis_t_event_exit,
+    ls_print      TYPE slis_print_alv,
+    ls_sort       TYPE slis_sortinfo_alv,
+    lt_sort       TYPE slis_t_sortinfo_alv.
+  "--------------------------------------
+
+
+* IF p_alvlst IS INITIAL.
+  ls_layout-box_fieldname = gc_checkbox.
+* ENDIF.
+
+  ls_layout-zebra             = gc_x.  "striped pattern
+  ls_layout-colwidth_optimize = gc_x.
+  ls_layout-group_change_edit = gc_x.
+
+  IF p_nocolr IS INITIAL.
+    ls_layout-coltab_fieldname = gc_colortab.
+  ENDIF.
+
+  "Activate refresh button
+  CLEAR ls_event_exit.
+  ls_event_exit-ucomm = gc_refresh.  "Refresh
+  ls_event_exit-after = gc_x.
+  APPEND ls_event_exit
+      TO lt_event_exit.
+
+  ls_event_exit-ucomm = gc_eb9.  "More
+  ls_event_exit-after = gc_x.
+  APPEND ls_event_exit
+      TO lt_event_exit.
+
+  "Build Sort Table
+  ls_sort-up        = gc_x.
+  ls_sort-fieldname = gc_trkorr.
+  APPEND ls_sort
+      TO lt_sort.
+
+  ls_print-no_print_selinfos  = gc_x.  "Display no selection infos
+  ls_print-no_print_listinfos = gc_x.  "Display no listinfos
+
+  IF p_alvlst IS NOT INITIAL.
+    CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+      EXPORTING
+        i_callback_program       = sy-cprog
+        i_callback_user_command  = 'USER_COMMAND'
+        i_callback_pf_status_set = 'PF_STATUS_SET'
+        it_fieldcat              = gt_fieldcat
+        it_sort                  = lt_sort
+        is_layout                = ls_layout
+        is_print                 = ls_print
+        it_event_exit            = lt_event_exit
+        i_save                   = 'A'
+      TABLES
+        t_outtab                 = <gt_data>.
+  ELSE.
+    CALL FUNCTION 'REUSE_ALV_LIST_DISPLAY'
+      EXPORTING
+        i_callback_program       = sy-cprog
+        i_callback_user_command  = 'USER_COMMAND'
+        i_callback_pf_status_set = 'PF_STATUS_SET'
+        it_fieldcat              = gt_fieldcat
+        it_sort                  = lt_sort
+        is_layout                = ls_layout
+        is_print                 = ls_print
+        it_event_exit            = lt_event_exit
+        i_save                   = 'A'
+      TABLES
+        t_outtab                 = <gt_data>.
+  ENDIF.
+
+ENDFORM.    "DISPLAY_DATA
+
+
+*-----------------------------------------------------------------------
+* Form USER_COMMAND
+*-----------------------------------------------------------------------
+FORM user_command USING u_ucomm     TYPE sy-ucomm
+                        us_selfield TYPE slis_selfield.
+
+  "--------------------------------------
+  DATA:
+    lp_struct TYPE REF TO data.
+
+  FIELD-SYMBOLS:
+    <ls_header> TYPE any.
+  "--------------------------------------
+
+
+  CASE u_ucomm.
+    WHEN '&IC1'.  "Clique a Request (hotspot)
+      CHECK us_selfield-fieldname = gc_trkorr.
+
+      "Create structure = structure of the internal table
+      CREATE DATA lp_struct
+      LIKE LINE OF <gt_data>.
+
+      ASSIGN lp_struct->*
+          TO <ls_header>.
+
+      READ TABLE <gt_data>
+       ASSIGNING <ls_header>
+           INDEX us_selfield-tabindex.
+
+      CHECK sy-subrc EQ 0.
+
+      ASSIGN COMPONENT gc_trkorr
+          OF STRUCTURE <ls_header>
+                    TO <field_header>.
+
+      IF sy-subrc EQ 0.
+        CALL FUNCTION 'TR_PRESENT_REQUEST'
+          EXPORTING
+            iv_trkorr    = <field_header>
+            iv_highlight = gc_x.
+      ENDIF.
+
+    WHEN gc_refresh.
+      REFRESH gr_trkorr.
+
+      "Read object in requests
+      PERFORM read_request USING: gt_where1 space,
+                                  gt_where2 space,
+                                  gt_where3 space,
+                                  gt_where4 space,
+                                  gt_where5 space.
+      PERFORM read_data.
+
+      us_selfield-refresh = gc_x.
+
+    WHEN gc_eb9.
+      PERFORM show_objects.
+
+    WHEN OTHERS.
+  ENDCASE.
+
+ENDFORM.    "USER_COMMAND
+
+
+*-----------------------------------------------------------------------
+* FORM PF_STATUS_SET
+*-----------------------------------------------------------------------
+FORM pf_status_set USING ut_extab TYPE slis_t_extab.
+
+  "Display refresh button
+  DELETE ut_extab
+  WHERE  fcode EQ gc_refresh
+  OR     fcode EQ gc_eb9.
+
+*  SET PF-STATUS 'STANDARD_FULLSCREEN'
+*     OF PROGRAM 'SAPLKKBL'
+*      EXCLUDING ut_extab.
+
+  SET PF-STATUS 'STANDARD'
+     OF PROGRAM 'SAPLKKBL'.
+
+ENDFORM.    "PF_STATUS_SET
+
+
+*-----------------------------------------------------------------------
+* Form AT_SELECTION_SCREEN_OUTPUT
+*-----------------------------------------------------------------------
+FORM at_selection_screen_output.
+
+  IF p_date_b IS INITIAL.
+    p_date_b = sy-datum - 7.
+  ENDIF.
+
+  LOOP AT SCREEN.
+    CASE screen-group1.
+      WHEN 'OUT'.  "
+        screen-input = '0'.
+        MODIFY SCREEN.
+
+      WHEN '2D'.  "
+        screen-input      = '0'.
+        screen-display_3d = '0'.
+        MODIFY SCREEN.
+
+      WHEN OTHERS.
+    ENDCASE.
+  ENDLOOP.
+
+ENDFORM.    "AT_SELECTION_SCREEN_OUTPUT
+
+
+*-----------------------------------------------------------------------
+* Form SELECTION_SCREEN
+*-----------------------------------------------------------------------
+FORM selection_screen USING u_pgmid  TYPE pgmid
+                            u_object TYPE trobjtype
+                            u_objnam TYPE ty_objnam
+                            ut_where TYPE ty_where_t.
+
+  "--------------------------------------
+  DATA:
+    lv_temp  TYPE char50,
+    lv_where TYPE char50,
+    lt_where TYPE TABLE OF char50.
+  "--------------------------------------
+
+
+  IF  u_object IS INITIAL
+  AND u_objnam IS NOT INITIAL.
+    SELECT pgmid
+           object
+    UP TO 1 ROWS
+    INTO (u_pgmid
+         ,u_object)
+    FROM tadir
+    WHERE obj_name EQ u_objnam.
+    ENDSELECT.
+  ENDIF.
+
+  CHECK u_pgmid  IS NOT INITIAL
+  AND   u_object IS NOT INITIAL
+  AND   u_objnam IS NOT INITIAL.
+
+  "Build dynamic where
+  CONCATENATE ''''
+              sy-sysid
+              '%'
+              ''''
+         INTO lv_temp.
+
+  CONCATENATE 'A~TRKORR LIKE '
+              lv_temp
+              'AND'
+         INTO lv_where
+    SEPARATED BY space.
+
+  APPEND lv_where
+      TO lt_where.
+
+  CONCATENATE ''''
+              u_pgmid
+              ''''
+         INTO lv_temp.
+
+  CONCATENATE 'PGMID = '
+              lv_temp
+              'AND'
+         INTO lv_where
+    SEPARATED BY space.
+
+  APPEND lv_where
+      TO lt_where.
+
+  CONCATENATE ''''
+              u_object
+              ''''
+         INTO lv_temp.
+
+  CONCATENATE 'OBJECT = '
+              lv_temp
+              'AND'
+         INTO lv_where
+    SEPARATED BY space.
+
+  APPEND lv_where
+      TO lt_where.
+
+  CONCATENATE ''''
+              u_objnam
+              ''''
+         INTO lv_temp.
+
+  IF u_objnam CS '*'.
+    TRANSLATE lv_temp
+        USING '*%'.
+
+    CONCATENATE 'OBJ_NAME LIKE '
+                lv_temp
+           INTO lv_where
+      SEPARATED BY space.
+  ELSE.
+    CONCATENATE 'OBJ_NAME = '
+                lv_temp
+           INTO lv_where
+      SEPARATED BY space.
+  ENDIF.
+
+  APPEND lv_where
+      TO lt_where.
+
+  CHECK ut_where[] NE lt_where[].
+
+  "Read object in requests
+  PERFORM read_request USING lt_where
+                             gc_x.
+
+  ut_where[] = lt_where[].
+
+ENDFORM.    "SELECTION_SCREEN
+
+
+*-----------------------------------------------------------------------
+* Form HELP_OBJECT_NAME
+*-----------------------------------------------------------------------
+FORM help_object_name USING u_pgmid  TYPE pgmid
+                            u_object TYPE trobjtype
+                            u_field  TYPE fieldname
+                   CHANGING u_objnam TYPE ty_objnam.
+
+  "--------------------------------------
+  TYPES:
+    BEGIN OF ty_values,
+      object   TYPE trobjtype,
+      obj_name TYPE sobj_name,
+    END OF ty_values.
+
+  DATA:
+    lv_dynprofld TYPE dynfnam,
+*   ls_values    TYPE ty_values,
+    lt_values    TYPE TABLE OF ty_values,
+    ls_return    TYPE ddshretval,
+    lt_return    TYPE dmc_ddshretval_table,
+    ls_dynpread  TYPE dynpread,
+    lt_dynpread  TYPE TABLE OF dynpread,
+    lv_dynnum    TYPE sy-dynnr,
+    lv_progname  TYPE sy-repid.
+  "--------------------------------------
+
+
+  CHECK u_pgmid EQ 'R3TR'.
+
+  lv_progname = sy-repid.
+  lv_dynnum   = sy-dynnr.
+
+  ls_dynpread-fieldname = u_field.
+  APPEND ls_dynpread
+      TO lt_dynpread.
+
+  CALL FUNCTION 'DYNP_VALUES_READ'
+    EXPORTING
+      dyname             = lv_progname
+      dynumb             = lv_dynnum
+      translate_to_upper = gc_x
+    TABLES
+      dynpfields         = lt_dynpread.
+
+  READ TABLE lt_dynpread
+        INTO ls_dynpread
+       INDEX 1.
+
+  IF ls_dynpread-fieldvalue CS '*'
+  OR ls_dynpread-fieldvalue CS '+'.
+    TRANSLATE ls_dynpread-fieldvalue
+        USING '*%'.
+
+    SELECT object
+           obj_name
+    INTO TABLE lt_values
+    UP TO 200 ROWS
+    FROM   tadir
+    WHERE  object   EQ u_object
+    AND    devclass NE '$TMP'
+    AND    pgmid    EQ 'R3TR'
+    AND    obj_name LIKE ls_dynpread-fieldvalue.
+  ELSE.
+    SELECT object
+           obj_name
+    INTO TABLE lt_values
+    UP TO 200 ROWS
+    FROM   tadir
+    WHERE  object   EQ u_object
+    AND    devclass NE '$TMP'
+    AND    pgmid    EQ 'R3TR'.
+  ENDIF.
+
+  lv_dynprofld = u_field.
+
+  "F4 help
+  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+    EXPORTING
+      retfield        = u_field
+      dynpprog        = lv_progname
+      dynpnr          = lv_dynnum
+      dynprofield     = lv_dynprofld
+      value_org       = 'S'
+    TABLES
+      value_tab       = lt_values
+      return_tab      = lt_return
+    EXCEPTIONS
+      parameter_error = 1
+      no_values_found = 2
+      OTHERS          = 3.
+
+  IF sy-subrc NE 0.
+    MESSAGE ID sy-msgid
+          TYPE sy-msgty
+        NUMBER sy-msgno
+          WITH sy-msgv1
+               sy-msgv2
+               sy-msgv3
+               sy-msgv4.
+  ENDIF.
+
+  CHECK lt_return[] IS NOT INITIAL.
+
+  READ TABLE lt_return
+        INTO ls_return
+       INDEX 1.
+
+  u_objnam = ls_return-fieldval.
+
+ENDFORM.    "HELP_OBJECT_NAME
+
+
+*-----------------------------------------------------------------------
+* Form SELECTION_SCREEN_OBJECT
+*-----------------------------------------------------------------------
+FORM selection_screen_object USING u_object TYPE trobjtype
+                          CHANGING u_pgmid  TYPE pgmid
+                                   u_objtxt TYPE trtext.
+
+  "--------------------------------------
+  DATA:
+    ls_object_text TYPE ko100.
+  "--------------------------------------
+
+
+  CHECK u_object IS NOT INITIAL.
+
+  READ TABLE gt_object_texts
+        INTO ls_object_text
+    WITH KEY object = u_object.
+
+  IF sy-subrc NE 0.
+    MESSAGE e870(tk).  "Selecionar um tipo de objeto válido (só objetos possíveis de bloquear)
+  ELSE.
+    u_pgmid  = ls_object_text-pgmid.
+    u_objtxt = ls_object_text-text.
+  ENDIF.
+
+ENDFORM.    "SELECTION_SCREEN_OBJECT
+
+
+*-----------------------------------------------------------------------
+* Form READ_OBJECT_TABLE
+*-----------------------------------------------------------------------
+FORM read_object_table CHANGING ut_object_texts TYPE tr_object_texts.
+
+  CHECK ut_object_texts[] IS INITIAL.
+
+  CALL FUNCTION 'TR_OBJECT_TABLE'
+    TABLES
+      wt_object_text = ut_object_texts.
+
+  DELETE ut_object_texts
+  WHERE pgmid NE 'R3TR'
+  AND   pgmid NE 'R3OB'
+  AND   pgmid NE 'LIMU'
+  AND   pgmid NE 'CORR'.
+
+  SORT ut_object_texts BY pgmid
+                          object.
+
+ENDFORM.    "READ_OBJECT_TABLE
+
+
+*-----------------------------------------------------------------------
+* Form READ_REQUEST
+*-----------------------------------------------------------------------
+FORM read_request USING ut_where TYPE ty_where_t
+                        u_flag   TYPE xfeld.
+
+  "--------------------------------------
+  DATA:
+    lr_trkorr TYPE RANGE OF trkorr.
+
+  FIELD-SYMBOLS:
+    <ls_trkorr> LIKE LINE OF lr_trkorr.
+  "--------------------------------------
+
+
+  CHECK ut_where[] IS NOT INITIAL.
+
+  SELECT a~trkorr AS low
+  INTO CORRESPONDING FIELDS OF TABLE lr_trkorr
+  FROM e071 AS a
+  JOIN e070 AS b
+         ON a~trkorr EQ b~trkorr
+  WHERE (ut_where)
+  AND   as4date BETWEEN p_date_b
+                    AND p_date_e
+  AND   as4user    IN s_truser
+  AND   trfunction IN s_trfnct
+  AND   korrdev    IN s_korrdv
+  AND   trstatus   EQ 'R'
+  AND   strkorr    EQ space.
+
+  LOOP AT lr_trkorr ASSIGNING <ls_trkorr>.
+    <ls_trkorr>-sign   = 'I'.
+    <ls_trkorr>-option = 'EQ'.
+  ENDLOOP.
+
+  APPEND LINES OF lr_trkorr
+               TO gr_trkorr.
+
+  SORT gr_trkorr.
+
+  DELETE ADJACENT DUPLICATES
+  FROM gr_trkorr.
+
+  IF  lr_trkorr[] IS INITIAL
+  AND u_flag EQ gc_x.
+    MESSAGE e208(00)
+       WITH 'No requests found.'(001).
+  ENDIF.
+
+ENDFORM.    "READ_REQUEST
+
+
+*-----------------------------------------------------------------------
+* Form SHOW_OBJECTS
+*-----------------------------------------------------------------------
+FORM show_objects.
+
+  "--------------------------------------
+  DATA:
+    lp_struct TYPE REF TO data,
+    lt_e071   TYPE TABLE OF e071,
+    lt_trkorr TYPE TABLE OF trkorr,
+    ls_sort   TYPE slis_sortinfo_alv,
+    lt_sort   TYPE slis_t_sortinfo_alv.
+
+  FIELD-SYMBOLS:
+    <ls_header> TYPE any.
+  "--------------------------------------
+
+
+  "Create structure = structure of the internal table
+  CREATE DATA lp_struct
+  LIKE LINE OF <gt_data>.
+
+  ASSIGN lp_struct->*
+      TO <ls_header>.
+
+  LOOP AT <gt_data> ASSIGNING <ls_header>.
+    ASSIGN COMPONENT gc_checkbox
+        OF STRUCTURE <ls_header>
+                  TO <field_header>.
+
+    CHECK sy-subrc IS INITIAL.
+
+    CHECK <field_header> EQ gc_x.
+
+    ASSIGN COMPONENT gc_trkorr
+        OF STRUCTURE <ls_header>
+                  TO <field_header>.
+
+    CHECK sy-subrc IS INITIAL.
+
+    APPEND <field_header>
+        TO lt_trkorr.
+  ENDLOOP.
+
+  CHECK lt_trkorr[] IS NOT INITIAL.
+
+  SELECT *
+  INTO TABLE lt_e071
+  FROM e071
+  FOR ALL ENTRIES IN lt_trkorr
+  WHERE  trkorr EQ lt_trkorr-table_line.
+
+  DELETE lt_e071
+  WHERE  pgmid EQ 'CORR'.
+
+  CHECK lt_e071 IS NOT INITIAL.
+
+  SORT lt_e071 BY pgmid
+                  object
+                  obj_name.
+
+  DELETE ADJACENT DUPLICATES
+  FROM lt_e071
+  COMPARING pgmid
+            object
+            obj_name.
+
+  "Build Sort Table
+  ls_sort-up        = gc_x.
+  ls_sort-fieldname = 'PGMID'.
+  APPEND ls_sort
+      TO lt_sort.
+
+  ls_sort-fieldname = 'OBJECT'.
+  APPEND ls_sort
+      TO lt_sort.
+
+  ls_sort-fieldname = 'OBJ_NAME'.
+  APPEND ls_sort
+      TO lt_sort.
+
+  gt_e071[] = lt_e071[].
+
+  IF p_alvlst IS NOT INITIAL.
+    CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+      EXPORTING
+        i_callback_program      = sy-cprog
+        i_callback_user_command = 'USER_COMMAND_2'
+        i_structure_name        = 'E071'
+        it_sort                 = lt_sort
+      TABLES
+        t_outtab                = gt_e071.
+  ELSE.
+    CALL FUNCTION 'REUSE_ALV_LIST_DISPLAY'
+      EXPORTING
+        i_callback_program      = sy-cprog
+        i_callback_user_command = 'USER_COMMAND_2'
+        i_structure_name        = 'E071'
+        it_sort                 = lt_sort
+      TABLES
+        t_outtab                = gt_e071.
+  ENDIF.
+
+ENDFORM.    "SHOW_OBJECTS
+
+
+*-----------------------------------------------------------------------
+* Form USER_COMMAND_2
+*-----------------------------------------------------------------------
+FORM user_command_2 USING u_ucomm     TYPE syucomm
+                          us_selfield TYPE slis_selfield.
+
+  "--------------------------------------
+  DATA:
+    ls_e071    TYPE e071,
+    ls_bdcdata TYPE bdcdata,
+    lt_bdcdata TYPE TABLE OF bdcdata.
+  "--------------------------------------
+
+
+  DEFINE mac_dynpro.
+    CLEAR ls_bdcdata.
+    ls_bdcdata-program  = &1.
+    ls_bdcdata-dynpro   = &2.
+    ls_bdcdata-dynbegin = gc_x.
+    APPEND ls_bdcdata
+        TO lt_bdcdata.
+    CLEAR ls_bdcdata.
+  END-OF-DEFINITION.
+
+  DEFINE mac_field.
+    CLEAR ls_bdcdata.
+    ls_bdcdata-fnam = &1.
+    ls_bdcdata-fval = &2.
+    APPEND ls_bdcdata
+        TO lt_bdcdata.
+    CLEAR ls_bdcdata.
+  END-OF-DEFINITION.
+
+
+  CASE u_ucomm.
+    WHEN '&IC1'.  "
+      READ TABLE gt_e071
+            INTO ls_e071
+           INDEX us_selfield-tabindex.
+
+      CHECK sy-subrc IS INITIAL.
+
+      IF us_selfield-fieldname EQ gc_trkorr.
+        CALL FUNCTION 'TR_PRESENT_REQUEST'
+          EXPORTING
+            iv_trkorr    = ls_e071-trkorr
+            iv_highlight = gc_x.
+        RETURN.
+      ENDIF.
+
+      CASE ls_e071-object.
+        WHEN 'FORM'.
+          "SAPscript form
+          SET PARAMETER ID 'TXF' FIELD ls_e071-obj_name.
+          SET PARAMETER ID 'TXL' FIELD 'FR'.
+          CALL TRANSACTION 'SE71' USING lt_bdcdata MODE 'A'.
+
+        WHEN 'SSFO'.
+          SELECT SINGLE
+                 formname
+          INTO   ls_e071-obj_name
+          FROM   stxfadm
+          WHERE  formname EQ ls_e071-obj_name
+          AND    formtype EQ space.
+
+          IF sy-subrc IS INITIAL.
+            "SAP SmartForms: Name of a Smart Form
+            SET PARAMETER ID 'SSFNAME' FIELD ls_e071-obj_name.
+
+            "SAP SmartForms
+            CALL TRANSACTION 'SMARTFORMS'.
+          ELSE.
+            mac_dynpro 'SAPMSSFO'          '0100'.
+            mac_field  'RB_TX'             gc_x.
+            mac_field  'BDC_OKCODE'        '=RB'.
+            mac_dynpro 'SAPMSSFO'          '0100'.
+            mac_field  'SSFSCREENS-TNAME'  ls_e071-obj_name.
+
+            CALL TRANSACTION 'SMARTFORMS'
+                       USING lt_bdcdata
+                        MODE 'E'.
+          ENDIF.
+
+        WHEN 'SSST'.
+          "SAP SmartForms: Name of a Smart Style
+          SET PARAMETER ID 'SSFSTYLE' FIELD ls_e071-obj_name.
+          mac_dynpro 'SAPMSSFO'    '0100'.
+          mac_field  'RB_ST'       gc_x.
+          mac_field  'BDC_OKCODE'  '/00'.
+
+          CALL TRANSACTION 'SMARTFORMS'
+                     USING lt_bdcdata
+                      MODE 'E'.
+
+        WHEN 'AQBG'.  "query user group
+          SET PARAMETER ID 'AQW' FIELD 'G'.  "global
+          SET PARAMETER ID 'AQB' FIELD ls_e071-obj_name.
+
+          CALL TRANSACTION 'SQ03'.
+
+        WHEN 'AQQU'.  "query
+          SET PARAMETER ID 'AQW' FIELD 'G'.  "global
+          SET PARAMETER ID 'AQB' FIELD ls_e071-obj_name(12).  "user group
+          SET PARAMETER ID 'AQQ' FIELD ls_e071-obj_name+12.
+
+          CALL TRANSACTION 'SQ01'.
+
+        WHEN 'AQSG'.  "query info set
+          SET PARAMETER ID 'AQW' FIELD 'G'.  "global
+          SET PARAMETER ID 'AQS' FIELD ls_e071-obj_name.
+
+          CALL TRANSACTION 'SQ02'.
+
+        WHEN 'SCVI'.  "screen variant
+          SET PARAMETER ID 'TCD' FIELD ls_e071-obj_name.
+          SET PARAMETER ID 'STV' FIELD space.
+
+          CALL TRANSACTION 'SHD0'.
+
+        WHEN 'STVI'.
+          SET PARAMETER ID 'SCRVAR' FIELD space.
+          SET PARAMETER ID 'STV'    FIELD ls_e071-obj_name.
+
+          CALL TRANSACTION 'SHD0'.
+
+        WHEN 'CMOD'.
+          PERFORM show_cmod USING ls_e071-obj_name(40).
+
+        WHEN OTHERS.
+          CALL FUNCTION 'TR_OBJECT_JUMP_TO_TOOL'
+            EXPORTING
+              iv_pgmid          = ls_e071-pgmid
+              iv_object         = ls_e071-object
+              iv_obj_name       = ls_e071-obj_name
+            EXCEPTIONS
+              jump_not_possible = 1
+              OTHERS            = 2.
+
+          IF sy-subrc NE 0.
+            MESSAGE ID sy-msgid
+                  TYPE sy-msgty
+                NUMBER sy-msgno
+                  WITH sy-msgv1
+                       sy-msgv2
+                       sy-msgv3
+                       sy-msgv4.
+          ENDIF.
+      ENDCASE.
+
+    WHEN OTHERS.
+  ENDCASE.
+
+ENDFORM.    "USER_COMMAND_2
+
+
+*-----------------------------------------------------------------------
+* Form SHOW_CMOD
+*-----------------------------------------------------------------------
+FORM show_cmod USING u_name TYPE sobj_name.
+
+  "--------------------------------------
+  DATA lv_modname TYPE modsap-name.
+  "--------------------------------------
+
+
+  lv_modname = u_name.
+
+  CALL FUNCTION 'MOD_KUN_MEMBERSCRN'
+    EXPORTING
+      message = gc_x
+      mode    = 'SHOM'
+      modname = lv_modname.
+
+ENDFORM.    "SHOW_CMOD
+*
+
+*-----------------------------------------------------------------------
+* TEXT ELEMENT
+*-----------------------------------------------------------------------
+* 001  No requests found.
+* 100  Start date
+* 101  End date
+* 102  Transport requests
+* 103  Owner of the request
+* 104  Request category
+* 105  Type of request
+* 106  Date DD.MM.YYYY (no time)
+* 107  No color
+* 108  ALV list
+* 109  No icon for return code
+* 110  No return code
+* 111  No user
+* 112  Error 8 only
+* B_1  Parameters
+* B_2  With objects only
+* B_3  Options
+*-----------------------------------------------------------------------
