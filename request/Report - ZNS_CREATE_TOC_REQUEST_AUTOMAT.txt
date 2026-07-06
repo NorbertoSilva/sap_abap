@@ -1,11 +1,11 @@
 *-----------------------------------------------------------------------
 * Object    : ZNS_CREATE_TOC_REQUEST_AUTOMAT
 * Type      : REPORT
-* Title     : Cria Request de Transporte de CÛpia (ToC) automaticamente
+* Title     : Cria Request de Transporte de C√≥pia (ToC) automaticamente
 *             Automatically creates a Transport of Copies (ToC) request
 * Tcode     : ZNS_001
 * Purpose   : Programa p/ criar automaticamente uma request ToC a partir
-*             de uma request original, liber·-la e transport·-la p/ QAS.
+*             de uma request original, liber√°-la e transport√°-la p/ QAS.
 *             Uso somente no ambiente DEV.
 *             Program to automatically create a ToC request from an
 *             original request, release it, and transport it to QAS.
@@ -126,7 +126,7 @@ FORM ns_exec.
 
     gv_msg_text = `A request original ` &&  "The original request
                   p_trkorr &&
-                  ` informada n„o existe`.  "does not exist
+                  ` informada n√£o existe`.  "does not exist
     CONDENSE gv_msg_text.
     WRITE / gv_msg_text.
 
@@ -212,7 +212,7 @@ FORM ns_exec.
 
 
   "--------------------------------------
-  " 3. Cria nova request do tipo Transporte de CÛpia (ToC)
+  " 3. Cria nova request do tipo Transporte de C√≥pia (ToC)
   " 3. Creates a new ToC type request
   "--------------------------------------
   DATA: lv_author     TYPE trexreqhd-author,
@@ -231,7 +231,7 @@ FORM ns_exec.
   CALL FUNCTION 'TRINT_INSERT_NEW_COMM'
     EXPORTING
       wi_kurztext       = lv_text
-      wi_trfunction     = 'T'    "T = Transporte de CÛpias / ToC type
+      wi_trfunction     = 'T'    "T = Transporte de C√≥pias / ToC type
       iv_tarsystem      = gv_target
       wi_client         = sy-mandt
     IMPORTING
@@ -278,7 +278,7 @@ FORM ns_exec.
 
 *  CALL FUNCTION 'TR_EXT_CREATE_REQUEST'
 *    EXPORTING
-*      iv_request_type = 'T'    "T = Transporte de CÛpias / ToC type
+*      iv_request_type = 'T'    "T = Transporte de C√≥pias / ToC type
 *      iv_target       = gv_target
 *      iv_author       = lv_author
 *      iv_text         = lv_text
@@ -376,8 +376,8 @@ FORM ns_exec.
   ENDIF.
 
   LOOP AT lt_tasks INTO ls_tasks
-  WHERE trstatus EQ 'D'   "D = Modific·vel / Modifiable
-  OR    trstatus EQ 'L'.  "L = Modific·vel, protegido / Modifiable, protected
+  WHERE trstatus EQ 'D'   "D = Modific√°vel / Modifiable
+  OR    trstatus EQ 'L'.  "L = Modific√°vel, protegido / Modifiable, protected
     CALL FUNCTION 'TR_COPY_COMM'
       EXPORTING
         wi_dialog                = space
@@ -428,12 +428,12 @@ FORM ns_exec.
     ENDIF.
 
     IF ls_tasks-strkorr IS INITIAL.
-      "… a request principal
+      "√â a request principal
       "It's the original request
       gv_msg_text = `Request copiada: ` &&  "Request copied:
                     ls_tasks-trkorr.
     ELSE.
-      "… uma tarefa da request principal
+      "√â uma tarefa da request principal
       "It's a task of original request
       gv_msg_text = `Tarefa copiada: ` &&  "Task copied:
                     ls_tasks-trkorr.
@@ -691,11 +691,11 @@ FORM ns_get_requests.
 
 
   lv_organizer_type      = 'W'.  "W=Workbench;
-  ls_selection-reqstatus = 'D'.  "D=Modific·vel; L=Modific·vel, protegido
+  ls_selection-reqstatus = 'D'.  "D=Modific√°vel; L=Modific√°vel, protegido
 
-  "Se n„o informar o IV_USERNAME, mostrar· as requests de todos.
-  "Dentro do popup tem o bot„o 'Ordens prÛprias' e poder· visualizar
-  "somente as request do usu·rio logado.
+  "Se n√£o informar o IV_USERNAME, mostrar√° as requests de todos.
+  "Dentro do popup tem o bot√£o 'Ordens pr√≥prias' e poder√° visualizar
+  "somente as request do usu√°rio logado.
 
   "If IV_USERNAME is not provided, requests from all users will be displayed.
   "The popup contains an 'Own requests' button, allowing you to view
@@ -731,12 +731,12 @@ ENDFORM.    "NS_GET_REQUESTS
 *-----------------------------------------------------------------------
 FORM ns_set_breakpoint.
 
-  "Em alguns ambientes que n„o d„o permiss„o para o login, È criado
+  "Em alguns ambientes que n√£o d√£o permiss√£o para o login, √© criado
   "esse breakpoint no Include LSTR9F01 (linha 177) para mudar o
   "SY-SUBRC para 0 e retornar na linha 171 para seguir e conseguir
-  "realizar a conclus„o da criaÁ„o da request ToC.
-  "Esse breakpoint ser· acionado algumas vezes atÈ concluir tudo.
-  "Se o login tiver permiss„o, esse breakpoint n„o ser· acionado.
+  "realizar a conclus√£o da cria√ß√£o da request ToC.
+  "Esse breakpoint ser√° acionado algumas vezes at√© concluir tudo.
+  "Se o login tiver permiss√£o, esse breakpoint n√£o ser√° acionado.
 
   "In environments where login permission is denied, this breakpoint
   "is set in Include LSTR9F01 (line 177) to change SY-SUBRC to 0 and
@@ -804,11 +804,11 @@ FORM ns_finish.
   WRITE /.
 
   IF gv_error IS INITIAL.
-    gv_msg_text = |Processo concluÌdo com sucesso|.  "Process finished sucessfuly
+    gv_msg_text = |Processo conclu√≠do com sucesso|.  "Process finished sucessfuly
     CONDENSE gv_msg_text.
     WRITE: / icon_checked AS ICON, gv_msg_text INTENSIFIED ON COLOR COL_POSITIVE.
   ELSE.
-    gv_msg_text = |Processo concluÌdo com erro|.  "Process finished with error
+    gv_msg_text = |Processo conclu√≠do com erro|.  "Process finished with error
     CONDENSE gv_msg_text.
     WRITE: / icon_incomplete AS ICON, gv_msg_text INTENSIFIED ON COLOR COL_NEGATIVE.
   ENDIF.
