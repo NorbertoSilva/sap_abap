@@ -1,18 +1,21 @@
 *-----------------------------------------------------------------------
-* Report ZNS_CHANGE_TRANSPORT_STATUS
-*-----------------------------------------------------------------------
-* This program is a copy of the RDDIT076 standard program.
-* Program to change status task.
-*-----------------------------------------------------------------------
-* Este programa permite a manutenção direta do status de Requests.
-* Program to change released task to unreleased
-* Change Released SAP Transport to Unreleased (Modifiable)
-* Program to modify SAP Released transport to Unreleased status
-* Program to Change a Released TR into a Modifiable TR
+* Object    : ZNS_CHANGE_TRANSPORT_STATUS
+* Type      : REPORT
+* Title     : Program to change status task
+* Tcode     : 
+* Purpose   : This program is a copy of the RDDIT076 standard program.
+*             Este programa permite a manutenção direta do status de Requests.
+*             Program to change released task to unreleased.
+*             Change Released SAP Transport to Unreleased (Modifiable).
+*             Program to modify SAP Released transport to Unreleased status.
+*             Program to Change a Released TR into a Modifiable TR.
+* Developer : Norberto Silva  ( norberto@norbertosilva.com )
+* Repository: https://github.com/NorbertoSilva
+* Update    : 07/07/2026
 *-----------------------------------------------------------------------
 
 
-REPORT zns_change_transport_status
+REPORT zns_change_transport_status_RDDIT076
 NO STANDARD PAGE HEADING
 LINE-SIZE 132.
 
