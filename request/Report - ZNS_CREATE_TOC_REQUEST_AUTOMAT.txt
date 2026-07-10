@@ -11,7 +11,8 @@
 *             original request, release it, and transport it to QAS.
 *             For use in the DEV environment only.
 * Developer : Norberto Silva  ( norberto@norbertosilva.com )
-* Repository: https://github.com/NorbertoSilva
+* Repository: github.com/NorbertoSilva
+*             www.linkedin.com/in/norbertosilva
 * Update    : 10/07/2026
 *-----------------------------------------------------------------------
 
