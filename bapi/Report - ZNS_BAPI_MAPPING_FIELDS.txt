@@ -6,8 +6,9 @@
 * Purpose   : Programa mapeia os campos para BAPI com base em tabelas e
 *             estruturas standard
 * Developer : Norberto Silva  ( norberto@norbertosilva.com )
-* Repository: https://github.com/NorbertoSilva
-* Update    : 07/07/2026
+* Repository: github.com/NorbertoSilva
+*             www.linkedin.com/in/norbertosilva
+* Update    : 10/07/2026
 *-----------------------------------------------------------------------
 
 
