@@ -39,24 +39,16 @@ SELECTION-SCREEN BEGIN OF BLOCK b1
 WITH FRAME TITLE nstxt_b1 NO INTERVALS.
 
 SELECTION-SCREEN SKIP.
-
-SELECTION-SCREEN BEGIN OF LINE.
-SELECTION-SCREEN COMMENT (25) nstxt_01 FOR FIELD p_trkorr.
-SELECTION-SCREEN POSITION 28.
 PARAMETERS p_trkorr TYPE e070-trkorr.
-SELECTION-SCREEN END OF LINE.
-
 SELECTION-SCREEN SKIP.
-
-SELECTION-SCREEN BEGIN OF LINE.
-PARAMETERS p_releas TYPE flag DEFAULT 'X'.
-SELECTION-SCREEN COMMENT (30) nstxt_02 FOR FIELD p_releas.
-SELECTION-SCREEN END OF LINE.
-
-SELECTION-SCREEN BEGIN OF LINE.
-PARAMETERS p_transp TYPE flag DEFAULT 'X'.
-SELECTION-SCREEN COMMENT (30) nstxt_03 FOR FIELD p_transp.
-SELECTION-SCREEN END OF LINE.
+PARAMETERS: p_releas TYPE flag DEFAULT 'X',
+            p_transp TYPE flag DEFAULT 'X'.
+SELECTION-SCREEN SKIP.
+SELECTION-SCREEN BEGIN OF BLOCK b2
+WITH FRAME TITLE nstxt_b2 NO INTERVALS.
+PARAMETERS: p_start RADIOBUTTON GROUP grp1,
+            p_end   RADIOBUTTON GROUP grp1 DEFAULT 'X'.
+SELECTION-SCREEN END OF BLOCK b2.
 
 SELECTION-SCREEN END OF BLOCK b1.
 *-----------------------------------------------------------------------
@@ -66,10 +58,14 @@ SELECTION-SCREEN END OF BLOCK b1.
 INITIALIZATION.
   GET PARAMETER ID 'KOR' FIELD p_trkorr.
 
-  nstxt_b1 = |Informe a request original|.  "Inform the original request
-  nstxt_01 = |Request/tarefa original|.     "Original request/task
-  nstxt_02 = |Liberar Request ToC|.         "Release ToC Request
-  nstxt_03 = |Transportar Request ToC|.     "Transport ToC Request
+  nstxt_b1 = |Informe a request original (F4 disponível)|.  "Inform the original request (F4 available)
+  nstxt_b2 = |Identificação ToC na descrição|.              "ToC Identification in the description
+
+  %_p_trkorr_%_app_%-text = |Request/tarefa original|.          "Original request/task
+  %_p_start_%_app_%-text  = |No início|.                        "At the beginning
+  %_p_end_%_app_%-text    = |No final|.                         "At the end
+  %_p_releas_%_app_%-text = |Liberar Request ToC|.              "Release ToC Request
+  %_p_transp_%_app_%-text = |Transportar Request ToC|.          "Transport ToC Request
 *-----------------------------------------------------------------------
 
 
@@ -223,9 +219,17 @@ FORM ns_exec.
   IF gv_error EQ abap_true. RETURN. ENDIF.
 
   lv_author = sy-uname.
-* lv_text = |ToC-{ gs_request-h-as4text }|.
-  lv_text = gs_request-h-as4text.
-  lv_text+56(4) = |-ToC|.
+  CASE abap_true.
+    WHEN p_start.
+      lv_text = |ToC-{ gs_request-h-as4text }|.
+
+    WHEN p_end.
+      lv_text = gs_request-h-as4text.
+      lv_text+56(4) = |-ToC|.
+
+    WHEN OTHERS.
+  ENDCASE.
+
   CONDENSE lv_text.
 
   CALL FUNCTION 'TRINT_INSERT_NEW_COMM'
