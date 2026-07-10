@@ -10,8 +10,9 @@
 *             Program to modify SAP Released transport to Unreleased status.
 *             Program to Change a Released TR into a Modifiable TR.
 * Developer : Norberto Silva  ( norberto@norbertosilva.com )
-* Repository: https://github.com/NorbertoSilva
-* Update    : 07/07/2026
+* Repository: github.com/NorbertoSilva
+*             www.linkedin.com/in/norbertosilva
+* Update    : 10/07/2026
 *-----------------------------------------------------------------------
 
 
