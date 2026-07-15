@@ -42,14 +42,24 @@ WITH FRAME TITLE nstxt_b1 NO INTERVALS.
 SELECTION-SCREEN SKIP.
 PARAMETERS p_trkorr TYPE e070-trkorr.
 SELECTION-SCREEN SKIP.
-PARAMETERS: p_releas TYPE flag DEFAULT 'X',
-            p_transp TYPE flag DEFAULT 'X'.
-SELECTION-SCREEN SKIP.
+
 SELECTION-SCREEN BEGIN OF BLOCK b2
 WITH FRAME TITLE nstxt_b2 NO INTERVALS.
 PARAMETERS: p_start RADIOBUTTON GROUP grp1,
             p_end   RADIOBUTTON GROUP grp1 DEFAULT 'X'.
 SELECTION-SCREEN END OF BLOCK b2.
+
+SELECTION-SCREEN BEGIN OF BLOCK b3
+WITH FRAME TITLE nstxt_b3 NO INTERVALS.
+PARAMETERS: p_modif AS CHECKBOX DEFAULT 'X',
+            p_relea AS CHECKBOX DEFAULT 'X'.
+SELECTION-SCREEN END OF BLOCK b3.
+
+SELECTION-SCREEN BEGIN OF BLOCK b4
+WITH FRAME TITLE nstxt_b4 NO INTERVALS.
+PARAMETERS: p_releas TYPE flag DEFAULT 'X',
+            p_transp TYPE flag DEFAULT 'X'.
+SELECTION-SCREEN END OF BLOCK b4.
 
 SELECTION-SCREEN END OF BLOCK b1.
 *-----------------------------------------------------------------------
@@ -61,12 +71,16 @@ INITIALIZATION.
 
   nstxt_b1 = |Informe a request original (F4 disponível)|.  "Inform the original request (F4 available)
   nstxt_b2 = |Identificação ToC na descrição|.              "ToC Identification in the description
+  nstxt_b3 = |Considerar status|.                           "Consider status
+  nstxt_b4 = |Ações complementares|.                        "Supplementary actions
 
-  %_p_trkorr_%_app_%-text = |Request/tarefa original|.          "Original request/task
-  %_p_start_%_app_%-text  = |No início|.                        "At the beginning
-  %_p_end_%_app_%-text    = |No final|.                         "At the end
-  %_p_releas_%_app_%-text = |Liberar Request ToC|.              "Release ToC Request
-  %_p_transp_%_app_%-text = |Transportar Request ToC|.          "Transport ToC Request
+  %_p_trkorr_%_app_%-text = |Request/tarefa original|.  "Original request/task
+  %_p_start_%_app_%-text  = |No início|.                "At the beginning
+  %_p_end_%_app_%-text    = |No final|.                 "At the end
+  %_p_releas_%_app_%-text = |Liberar Request ToC|.      "Release ToC Request
+  %_p_transp_%_app_%-text = |Transportar Request ToC|.  "Transport ToC Request
+  %_p_modif_%_app_%-text  = |Modificável|.              "Modifiable
+  %_p_relea_%_app_%-text  = |Liberada|.                 "Released
 *-----------------------------------------------------------------------
 
 
@@ -102,21 +116,22 @@ FORM ns_exec.
 
   "--------------------------------------
   " 1. Verifica se a request original existe
-  " 1. Verify is the original request exists
+  " 1. Verify if the original request exists
   "--------------------------------------
   IF gv_error EQ abap_true. RETURN. ENDIF.
 
   CALL FUNCTION 'TR_READ_REQUEST'
     EXPORTING
-      iv_read_e070     = abap_true
-      iv_read_e07t     = abap_true
-      iv_trkorr        = p_trkorr
+      iv_read_e070       = abap_true
+      iv_read_e07t       = abap_true
+      iv_read_attributes = abap_true
+      iv_trkorr          = p_trkorr
     CHANGING
-      cs_request       = gs_request
+      cs_request         = gs_request
     EXCEPTIONS
-      error_occured    = 1
-      no_authorization = 2
-      OTHERS           = 3.
+      error_occured      = 1
+      no_authorization   = 2
+      OTHERS             = 3.
 
   IF sy-subrc NE 0.
     gv_error = abap_true.
@@ -333,7 +348,7 @@ FORM ns_exec.
 
 
   "--------------------------------------
-  " 4. Copia objetos da request original e suas tasks p/ a request ToC
+  " 4. Copia objetos da request original e suas tasks para a request ToC
   " 4. Copies objects from the original request and its tasks to the ToC request
   "--------------------------------------
   DATA: lt_tasks TYPE STANDARD TABLE OF tr001,
@@ -380,9 +395,25 @@ FORM ns_exec.
     RETURN.
   ENDIF.
 
-  LOOP AT lt_tasks INTO ls_tasks
-  WHERE trstatus EQ 'D'   "D = Modificável / Modifiable
-  OR    trstatus EQ 'L'.  "L = Modificável, protegido / Modifiable, protected
+  LOOP AT lt_tasks INTO ls_tasks.
+    CASE ls_tasks-trstatus.
+      WHEN 'D'   "D = Modificável / Modifiable
+      OR   'L'.  "L = Modificável, protegido / Modifiable, protected
+        IF p_modif IS INITIAL.  "not selected
+          CONTINUE.  "Disregard, next record
+        ENDIF.
+
+      WHEN 'R'   "R = Liberado / Released
+*      OR   'O'   "O = Liberação executada / Release executed
+      OR   'N'.  "N = Liberado (proteção de importação ativa para objetos reparados) / Released
+        IF p_releas IS INITIAL.  "not selected
+          CONTINUE.  "Disregard, next record
+        ENDIF.
+
+      WHEN OTHERS.
+        CONTINUE.  "Disregard, next record
+    ENDCASE.
+
     CALL FUNCTION 'TR_COPY_COMM'
       EXPORTING
         wi_dialog                = space
@@ -581,8 +612,8 @@ FORM ns_exec.
 
 
   "--------------------------------------
-  " 6. Realiza o transporte p/ QAS
-  " 6. Realize the transport to QAS environment
+  " 6. Realiza o transporte para o ambiente QAS
+  " 6. Realize the transport to the QAS environment
   "--------------------------------------
   IF gv_error EQ abap_true. RETURN. ENDIF.
 
@@ -628,6 +659,41 @@ FORM ns_exec.
 **     MESSAGE |Request { gv_new_trkorr } imported to { gv_target } successfully!|
 *      TYPE 'S'.
 *    ENDIF.
+
+    "--------------------------------------
+    "Verifica aqui com uma função se a request ToC já está totalmente
+    "liberada e pronta para ser transportada. Porque pode ocorrer um
+    "delay quando há muitos objetos na request original.
+    DATA lv_ok TYPE flag.
+
+    WHILE lv_ok IS INITIAL.
+      CLEAR gs_request.
+      CALL FUNCTION 'TR_READ_REQUEST'
+        EXPORTING
+          iv_read_attributes = abap_true
+          iv_trkorr          = gv_new_trkorr
+        CHANGING
+          cs_request         = gs_request
+        EXCEPTIONS
+          error_occured      = 1
+          no_authorization   = 2
+          OTHERS             = 3.
+
+      IF sy-subrc NE 0.
+        lv_ok = abap_true.
+      ELSE.
+        IF gs_request-h-trstatus EQ 'R'.  "R = Liberado / Released
+          lv_ok = abap_true.
+        ELSE.
+          gv_msg_text = |Aguardando a liberação da Request ToC|.  "Awaiting approval of the ToC Request
+          CONDENSE gv_msg_text.
+          WRITE: / icon_locked AS ICON, gv_msg_text.
+
+          WAIT UP TO 2 SECONDS.
+        ENDIF.
+      ENDIF.
+    ENDWHILE.
+    "--------------------------------------
 
     CALL FUNCTION 'TMS_MGR_IMPORT_TR_REQUEST'
       EXPORTING
@@ -700,10 +766,10 @@ FORM ns_get_requests.
 
   "Se não informar o IV_USERNAME, mostrará as requests de todos.
   "Dentro do popup tem o botão 'Ordens próprias' e poderá visualizar
-  "somente as request do usuário logado.
+  "somente as requests do usuário logado.
 
   "If IV_USERNAME is not provided, requests from all users will be displayed.
-  "The popup contains an 'Own requests' button, allowing you to view
+  "The pop-up contains an 'Own requests' button, allowing you to view
   "only the logged-in user's requests.
   CALL FUNCTION 'TR_PRESENT_REQUESTS_SEL_POPUP'
     EXPORTING
@@ -809,7 +875,7 @@ FORM ns_finish.
   WRITE /.
 
   IF gv_error IS INITIAL.
-    gv_msg_text = |Processo concluído com sucesso|.  "Process finished sucessfuly
+    gv_msg_text = |Processo concluído com sucesso|.  "Process finished successfully
     CONDENSE gv_msg_text.
     WRITE: / icon_checked AS ICON, gv_msg_text INTENSIFIED ON COLOR COL_POSITIVE.
   ELSE.
