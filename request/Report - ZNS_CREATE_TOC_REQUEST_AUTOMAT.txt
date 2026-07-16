@@ -685,7 +685,7 @@ FORM ns_exec.
         IF gs_request-h-trstatus EQ 'R'.  "R = Liberado / Released
           lv_ok = abap_true.
         ELSE.
-          gv_msg_text = |Aguardando a liberação da Request ToC|.  "Awaiting approval of the ToC Request
+          gv_msg_text = |Aguardando concluir a liberação da Request ToC|.  "Awaiting completion of the Request ToC release
           CONDENSE gv_msg_text.
           WRITE: / icon_locked AS ICON, gv_msg_text.
 
